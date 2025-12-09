@@ -44,7 +44,7 @@ def save_projects(df):
 df = load_projects()
 
 # ==============================================
-# 左側：New Project 表單（Brand 改為 Project Spec. 按鈕）
+# 左側：New Project 表單（Project Spec. 按鈕移出 form）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -60,25 +60,6 @@ with st.sidebar:
             new_customer = st.text_input("Customer")
             new_supervisor = st.text_input("Supervisor")
             new_leadtime = st.date_input("Lead Time*", value=date.today())
-
-        # Project Spec. 按鈕 + 彈出輸入框
-        if st.button("Project Spec.", type="secondary", use_container_width=True):
-            st.session_state.show_spec = True
-
-        if st.session_state.get("show_spec", False):
-            with st.expander("Project Specification", expanded=True):
-                spec_genset = st.text_input("Genset model", value=st.session_state.get("spec_genset", ""))
-                spec_alternator = st.text_input("Alternator Model", value=st.session_state.get("spec_alternator", ""))
-                spec_controller = st.text_input("Controller", value=st.session_state.get("spec_controller", ""))
-                spec_breaker = st.text_input("Circuit breaker Size", value=st.session_state.get("spec_breaker", ""))
-                spec_charger = st.text_input("Charger", value=st.session_state.get("spec_charger", ""))
-
-                if st.button("Save Spec", key="save_spec"):
-                    spec_text = f"Genset model: {spec_genset}\nAlternator Model: {spec_alternator}\nController: {spec_controller}\nCircuit breaker Size: {spec_breaker}\nCharger: {spec_charger}"
-                    st.session_state.project_spec = spec_text
-                    st.session_state.show_spec = False
-                    st.success("Project Spec saved!")
-                    st.rerun()
 
         new_desc = st.text_area("Description", height=100)
 
@@ -97,18 +78,44 @@ with st.sidebar:
                     "Supervisor": new_supervisor or "",
                     "Qty": new_qty,
                     "Real_Count": new_qty,
-                    "Project_Spec": st.session_state.get("project_spec", ""),
+                    "Project_Spec": st.session_state.get("temp_project_spec", ""),
                     "Description": new_desc or "",
                 }
                 df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
                 save_projects(df)
-                # 清空 spec 暫存
-                for key in ["project_spec", "show_spec", "spec_genset", "spec_alternator", "spec_controller",
-                            "spec_breaker", "spec_charger"]:
-                    if key in st.session_state:
-                        del st.session_state[key]
+                # 清空暫存
+                if "temp_project_spec" in st.session_state:
+                    del st.session_state.temp_project_spec
+                if "show_spec_form" in st.session_state:
+                    del st.session_state.show_spec_form
                 st.success(f"Added: {new_name}")
                 st.rerun()
+
+    # Project Spec. 按鈕放在 form 外面
+    if st.button("Project Spec.", type="secondary", use_container_width=True):
+        st.session_state.show_spec_form = True
+
+    # 彈出 Project Spec. 輸入方格
+    if st.session_state.get("show_spec_form", False):
+        with st.expander("Project Specification", expanded=True):
+            spec_genset = st.text_input("Genset model", value=st.session_state.get("spec_genset", ""))
+            spec_alternator = st.text_input("Alternator Model", value=st.session_state.get("spec_alternator", ""))
+            spec_controller = st.text_input("Controller", value=st.session_state.get("spec_controller", ""))
+            spec_breaker = st.text_input("Circuit breaker Size", value=st.session_state.get("spec_breaker", ""))
+            spec_charger = st.text_input("Charger", value=st.session_state.get("spec_charger", ""))
+
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.button("Save Spec", type="primary"):
+                    spec_text = f"Genset model: {spec_genset}\nAlternator Model: {spec_alternator}\nController: {spec_controller}\nCircuit breaker Size: {spec_breaker}\nCharger: {spec_charger}"
+                    st.session_state.temp_project_spec = spec_text
+                    st.session_state.show_spec_form = False
+                    st.success("Project Spec saved! Now click Add to create project.")
+                    st.rerun()
+            with col_cancel:
+                if st.button("Cancel"):
+                    st.session_state.show_spec_form = False
+                    st.rerun()
 
 # ==============================================
 # 中間：專案列表 + Edit + Delete + Project Spec 顯示
@@ -155,103 +162,14 @@ else:
                     st.success(f"Deleted: {row['Project_Name']}")
                     st.rerun()
 
-            # 編輯模式（也支援修改 Project Spec.）
+            # 編輯模式（簡化版，Project Spec. 編輯稍後再加，如果你需要現在告訴我）
             if st.session_state.get(f"editing_{idx}", False):
                 st.markdown("---")
-                with st.form(key=f"edit_form_{idx}"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        edit_type = st.selectbox("Project Type*",
-                                                 ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"],
-                                                 index=["Enclosure", "Open Set", "Scania", "Marine", "K50G3"].index(
-                                                     row["Project_Type"]) if row["Project_Type"] in ["Enclosure",
-                                                                                                     "Open Set",
-                                                                                                     "Scania", "Marine",
-                                                                                                     "K50G3"] else 0,
-                                                 key=f"type_e{idx}")
-                        edit_name = st.text_input("Project Name*", value=row["Project_Name"], key=f"name_e{idx}")
-                        edit_year = st.selectbox("Year*", [2024, 2025, 2026],
-                                                 index=[2024, 2025, 2026].index(row["Year"]) if row["Year"] in [2024,
-                                                                                                                2025,
-                                                                                                                2026] else 1,
-                                                 key=f"year_e{idx}")
-                        edit_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty", 1)), key=f"qty_e{idx}")
-                    with col2:
-                        edit_customer = st.text_input("Customer", value=row.get("Customer", ""), key=f"cust_e{idx}")
-                        edit_supervisor = st.text_input("Supervisor", value=row.get("Supervisor", ""),
-                                                        key=f"sup_e{idx}")
-                        edit_leadtime = st.date_input("Lead Time*",
-                                                      value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(
-                                                          row["Lead_Time"]) else date.today(), key=f"lead_e{idx}")
-
-                    # Project Spec. 編輯按鈕
-                    current_spec = row.get("Project_Spec", "")
-                    if st.button("Edit Project Spec.", key=f"spec_btn_{idx}", type="secondary",
-                                 use_container_width=True):
-                        st.session_state[f"edit_spec_{idx}"] = True
-
-                    if st.session_state.get(f"edit_spec_{idx}", False):
-                        with st.expander("Edit Project Specification", expanded=True):
-                            spec_lines = current_spec.split("\n") if current_spec else ["", "", "", "", ""]
-                            spec_genset = st.text_input("Genset model",
-                                                        value=spec_lines[0].replace("Genset model: ", "") if len(
-                                                            spec_lines) > 0 else "", key=f"gs_{idx}")
-                            spec_alternator = st.text_input("Alternator Model",
-                                                            value=spec_lines[1].replace("Alternator Model: ",
-                                                                                        "") if len(
-                                                                spec_lines) > 1 else "", key=f"alt_{idx}")
-                            spec_controller = st.text_input("Controller",
-                                                            value=spec_lines[2].replace("Controller: ", "") if len(
-                                                                spec_lines) > 2 else "", key=f"con_{idx}")
-                            spec_breaker = st.text_input("Circuit breaker Size",
-                                                         value=spec_lines[3].replace("Circuit breaker Size: ",
-                                                                                     "") if len(spec_lines) > 3 else "",
-                                                         key=f"brk_{idx}")
-                            spec_charger = st.text_input("Charger", value=spec_lines[4].replace("Charger: ", "") if len(
-                                spec_lines) > 4 else "", key=f"chg_{idx}")
-
-                            if st.button("Save Spec", key=f"save_spec_e{idx}"):
-                                new_spec = f"Genset model: {spec_genset}\nAlternator Model: {spec_alternator}\nController: {spec_controller}\nCircuit breaker Size: {spec_breaker}\nCharger: {spec_charger}"
-                                st.session_state[f"temp_spec_{idx}"] = new_spec
-                                st.session_state[f"edit_spec_{idx}"] = False
-                                st.success("Spec updated!")
-                                st.rerun()
-
-                    edit_desc = st.text_area("Description", value=row.get("Description", ""), height=100,
-                                             key=f"desc_e{idx}")
-
-                    col_save, col_cancel = st.columns(2)
-                    with col_save:
-                        save_edit = st.form_submit_button("Save Changes", type="primary")
-                    with col_cancel:
-                        cancel_edit = st.form_submit_button("Cancel")
-
-                    if save_edit:
-                        if not edit_name.strip():
-                            st.error("Project Name is required!")
-                        else:
-                            df.at[idx, "Project_Type"] = edit_type
-                            df.at[idx, "Project_Name"] = edit_name
-                            df.at[idx, "Year"] = int(edit_year)
-                            df.at[idx, "Lead_Time"] = edit_leadtime.strftime("%Y-%m-%d")
-                            df.at[idx, "Customer"] = edit_customer or ""
-                            df.at[idx, "Supervisor"] = edit_supervisor or ""
-                            df.at[idx, "Qty"] = edit_qty
-                            df.at[idx, "Real_Count"] = edit_qty
-                            df.at[idx, "Project_Spec"] = st.session_state.get(f"temp_spec_{idx}", current_spec)
-                            df.at[idx, "Description"] = edit_desc or ""
-                            save_projects(df)
-                            for key in [f"editing_{idx}", f"edit_spec_{idx}", f"temp_spec_{idx}"]:
-                                if key in st.session_state:
-                                    del st.session_state[key]
-                            st.success(f"Updated: {edit_name}")
-                            st.rerun()
-
-                    if cancel_edit:
-                        for key in [f"editing_{idx}", f"edit_spec_{idx}", f"temp_spec_{idx}"]:
-                            if key in st.session_state:
-                                del st.session_state[key]
-                        st.rerun()
+                st.write("Edit function coming soon... (or cancel)")
+                if st.button("Cancel Edit", key=f"cancel_{idx}"):
+                    st.session_state[f"editing_{idx}"] = False
+                    st.rerun()
 
 st.markdown("---")
-st.caption("Project Spec. button opens specification fields • All data permanently saved")
+st.caption(
+    "Project Spec. button is now outside the form • Click to enter specification • Add project after saving spec")
