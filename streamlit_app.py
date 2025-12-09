@@ -151,7 +151,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：專案列表（Project Spec. 在下面一行一行顯示）
+# 中間：專案列表（Project Spec. 在下面一行一行）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -167,7 +167,6 @@ else:
             col_l, col_r = st.columns([9, 2])
 
             with col_l:
-                # 進度條
                 st.markdown(f"""
                 <div style="background:{color}; color:white; padding:10px 20px; border-radius:8px; font-weight:bold;">
                     Progress: {pct}% Complete
@@ -177,7 +176,6 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # 基本資訊
                 st.markdown(f"""
                 <div style="background:#f8f9fa; padding:20px; border-radius:10px; border-left:8px solid {color}; line-height:1.8;">
                     <p><strong>Year:</strong> {row['Year']} | <strong>Lead Time:</strong> {fmt(row['Lead_Time'])}</p>
@@ -186,7 +184,7 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Project Spec. 在最下面，一行一行
+                # Project Spec. 在下面一行一行
                 if row.get("Project_Spec"):
                     st.markdown("**Project Specification:**")
                     for line in row["Project_Spec"].split("\n"):
@@ -201,13 +199,12 @@ else:
                 if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects(df)
-                    st.success(f"Deleted: {row['Project_Name']}")
                     st.rerun()
 
             # ============ 完整 Edit 表單 ============
             if st.session_state.get("editing_index") == idx:
                 st.markdown("---")
-                st.subheader(f"Editing: {row['Project_Name']")
+                st.subheader(f"Editing: {row['Project_Name']}")
                 with st.form(key=f"edit_form_{idx}"):
                     c1, c2 = st.columns(2)
                     with c1:
@@ -296,4 +293,4 @@ else:
                             st.rerun()
 
 st.markdown("---")
-st.caption("Project Spec. displayed line by line below • Edit function fully working • Progress auto-updates")
+st.caption("All projects permanently saved • Edit function fully working • Progress auto-updates")
