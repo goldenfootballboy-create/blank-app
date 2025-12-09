@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存 + 自動補齊舊資料
+# 永久儲存 + 完全防呆
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
 
@@ -22,16 +22,16 @@ def load_projects():
 
     df = pd.DataFrame(data)
 
-    # 補齊所有欄位（舊資料不會出錯）
-    required_cols = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
-                     "Qty", "Real_Count", "Project_Spec", "Description",
-                     "Parts_Arrival", "Installation_Complete", "Testing_Complete",
-                     "Cleaning_Complete", "Delivery_Complete"]
-    for col in required_cols:
+    # 強制補齊所有欄位（舊資料不會出錯）
+    required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
+                "Qty", "Real_Count", "Project_Spec", "Description",
+                "Parts_Arrival", "Installation_Complete", "Testing_Complete",
+                "Cleaning_Complete", "Delivery_Complete"]
+    for col in required:
         if col not in df.columns:
             df[col] = None
 
-    # 日期轉換
+    # 日期安全轉換
     date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
                  "Delivery_Complete"]
     for c in date_cols:
@@ -62,16 +62,16 @@ df = load_projects()
 # 進度計算 + 顏色
 # ==============================================
 def calculate_progress(row):
-    progress = 0
-    if pd.notna(row.get("Parts_Arrival")): progress += 30
-    if pd.notna(row.get("Installation_Complete")): progress += 40
-    if pd.notna(row.get("Testing_Complete")): progress += 10
-    if pd.notna(row.get("Cleaning_Complete")): progress += 10
-    if pd.notna(row.get("Delivery_Complete")): progress += 10
-    return min(progress, 100)
+    p = 0
+    if pd.notna(row.get("Parts_Arrival")): p += 30
+    if pd.notna(row.get("Installation_Complete")): p += 40
+    if pd.notna(row.get("Testing_Complete")): p += 10
+    if pd.notna(row.get("Cleaning_Complete")): p += 10
+    if pd.notna(row.get("Delivery_Complete")): p += 10
+    return min(p, 100)
 
 
-def get_progress_color(pct):
+def get_color(pct):
     if pct >= 100:
         return "#0066ff"
     elif pct >= 90:
@@ -91,108 +91,113 @@ with st.sidebar:
     st.header("New Project")
 
     with st.form("add_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
-            new_name = st.text_input("Project Name*", placeholder="e.g. YIP-2025-001")
+            new_name = st.text_input("Project Name*")
             new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1)
             new_qty = st.number_input("Qty", min_value=1, value=1)
-        with col2:
+        with c2:
             new_customer = st.text_input("Customer")
             new_supervisor = st.text_input("Supervisor")
             new_leadtime = st.date_input("Lead Time*", value=date.today())
 
         with st.expander("Project Specification & Progress Dates", expanded=False):
             st.markdown("**Specification**")
-            spec_genset = st.text_input("Genset model")
-            spec_alternator = st.text_input("Alternator Model")
-            spec_controller = st.text_input("Controller")
-            spec_breaker = st.text_input("Circuit breaker Size")
-            spec_charger = st.text_input("Charger")
+            s1 = st.text_input("Genset model")
+            s2 = st.text_input("Alternator Model")
+            s3 = st.text_input("Controller")
+            s4 = st.text_input("Circuit breaker Size")
+            s5 = st.text_input("Charger")
 
             st.markdown("**Progress Dates**")
-            p1 = st.date_input("Parts Arrival", value=None, key="p1")
-            p2 = st.date_input("Installation Complete", value=None, key="p2")
-            p3 = st.date_input("Testing Complete", value=None, key="p3")
-            p4 = st.date_input("Cleaning Complete", value=None, key="p4")
-            p5 = st.date_input("Delivery Complete", value=None, key="p5")
+            d1 = st.date_input("Parts Arrival", value=None, key="d1")
+            d2 = st.date_input("Installation Complete", value=None, key="d2")
+            d3 = st.date_input("Testing Complete", value=None, key="d3")
+            d4 = st.date_input("Cleaning Complete", value=None, key="d4")
+            d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
-            new_desc = st.text_area("Description", height=100)
+            desc = st.text_area("Description", height=100)
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
             if not new_name.strip():
-                st.error("Project Name is required!")
+                st.error("Project Name required!")
             elif new_name in df["Project_Name"].values:
-                st.error("Project Name already exists!")
+                st.error("Name exists!")
             else:
-                spec_text = f"Genset model: {spec_genset or '—'}\nAlternator Model: {spec_alternator or '—'}\nController: {spec_controller or '—'}\nCircuit breaker Size: {spec_breaker or '—'}\nCharger: {spec_charger or '—'}"
-                new_project = {
+                spec = f"Genset model: {s1 or '—'}\nAlternator Model: {s2 or '—'}\nController: {s3 or '—'}\nCircuit breaker Size: {s4 or '—'}\nCharger: {s5 or '—'}"
+                new_p = {
                     "Project_Type": new_type, "Project_Name": new_name, "Year": int(new_year),
                     "Lead_Time": new_leadtime.strftime("%Y-%m-%d"), "Customer": new_customer or "",
                     "Supervisor": new_supervisor or "", "Qty": new_qty, "Real_Count": new_qty,
-                    "Project_Spec": spec_text, "Description": new_desc or "",
-                    "Parts_Arrival": p1.strftime("%Y-%m-%d") if p1 else None,
-                    "Installation_Complete": p2.strftime("%Y-%m-%d") if p2 else None,
-                    "Testing_Complete": p3.strftime("%Y-%m-%d") if p3 else None,
-                    "Cleaning_Complete": p4.strftime("%Y-%m-%d") if p4 else None,
-                    "Delivery_Complete": p5.strftime("%Y-%m-%d") if p5 else None,
+                    "Project_Spec": spec, "Description": desc or "",
+                    "Parts_Arrival": d1.strftime("%Y-%m-%d") if d1 else None,
+                    "Installation_Complete": d2.strftime("%Y-%m-%d") if d2 else None,
+                    "Testing_Complete": d3.strftime("%Y-%m-%d") if d3 else None,
+                    "Cleaning_Complete": d4.strftime("%Y-%m-%d") if d4 else None,
+                    "Delivery_Complete": d5.strftime("%Y-%m-%d") if d5 else None,
                 }
-                df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
+                df = pd.concat([df, pd.DataFrame([new_p])], ignore_index=True)
                 save_projects(df)
                 st.success(f"Added: {new_name}")
                 st.rerun()
 
 # ==============================================
-# 中間：彩色進度卡片
+# 中間：完美彩色卡片（NaT 顯示「Not set」）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
 if len(df) == 0:
-    st.info("No projects yet. Add one on the left!")
+    st.info("No projects yet. Add one on the left.")
 else:
     for idx, row in df.iterrows():
         pct = calculate_progress(row)
-        color = get_progress_color(pct)
+        color = get_color(pct)
 
         with st.expander(f"**{row['Project_Name']}** • {row['Project_Type']} • {row.get('Customer', '—')}",
                          expanded=False):
-            col_main, col_btn = st.columns([9, 2])
+            col_l, col_r = st.columns([9, 2])
 
-            with col_main:
+            with col_l:
                 st.markdown(f"""
-                <div style="background:{color}; color:white; padding:10px 20px; border-radius:8px; font-weight:bold; margin-bottom:10px;">
+                <div style="background:{color}; color:white; padding:10px 20px; border-radius:8px; font-weight:bold;">
                     Progress: {pct}% Complete
                 </div>
-                <div style="background:#eee; border-radius:8px; overflow:hidden; height:12px; margin-bottom:15px;">
+                <div style="background:#eee; border-radius:8px; overflow:hidden; height:12px; margin:10px 0;">
                     <div style="width:{pct}%; background:{color}; height:100%;"></div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                st.markdown(f"""
-                <div style="background:#f8f9fa; padding:20px; border-radius:10px; border-left:8px solid {color};">
-                    <p><strong>Year:</strong> {row['Year']} | <strong>Lead Time:</strong> {row['Lead_Time']}</p>
-                    <p><strong>Customer:</strong> {row.get('Customer', '—')} | <strong>Supervisor:</strong> {row.get('Supervisor', '—')} | <strong>Qty:</strong> {row.get('Qty', 0)}</p>
-                    {f"<pre style='background:#f0f0f0; padding:12px; border-radius:6px; margin:15px 0;'>{row.get('Project_Spec', '')}</pre>" if row.get('Project_Spec') else ""}
-                    {f"<p><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
 
+                # 安全顯示日期（不會出現 NaT）
+                def fmt(d):
+                    return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "Not set"
+
+
+                st.markdown(f"""
+                <div style="background:#f8f9fa; padding:20px; border-radius:10px; border-left:8px solid {color}; line-height:1.8;">
+                    <strong>Year:</strong> {row['Year']} | <strong>Lead Time:</strong> {fmt(row['Lead_Time'])}<br>
+                    <strong>Customer:</strong> {row.get('Customer', '—')} | <strong>Supervisor:</strong> {row.get('Supervisor', '—')} | <strong>Qty:</strong> {row.get('Qty', 0)}<br>
+                    {f"<pre style='background:#f0f0f0; padding:12px; border-radius:6px; margin:15px 0; white-space: pre-wrap;'>{row.get('Project_Spec', '')}</pre>" if row.get('Project_Spec') else ""}
+                    {f"<p><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
                     <hr style="border:1px dashed #ccc;">
-                    <p style="color:#555;">
-                        Parts Arrival: {row.get('Parts_Arrival', 'Not set')}<br>
-                        Installation: {row.get('Installation_Complete', 'Not set')}<br>
-                        Testing: {row.get('Testing_Complete', 'Not set')}<br>
-                        Cleaning: {row.get('Cleaning_Complete', 'Not set')}<br>
-                        Delivery: {row.get('Delivery_Complete', 'Not set')}
-                    </p>
+                    <strong>Progress Dates:</strong><br>
+                    Parts Arrival: {fmt(row.get('Parts_Arrival'))}<br>
+                    Installation: {fmt(row.get('Installation_Complete'))}<br>
+                    Testing: {fmt(row.get('Testing_Complete'))}<br>
+                    Cleaning: {fmt(row.get('Cleaning_Complete'))}<br>
+                    Delivery: {fmt(row.get('Delivery_Complete'))}
                 </div>
                 """, unsafe_allow_html=True)
 
-            with col_btn:
-                if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
-                    st.session_state[f"edit_{idx}"] = True
-                if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
+            with col_r:
+                if st.button("Edit", key=f"e{idx}", use_container_width=True):
+                    st.session_state.editing_index = idx
+                if st.button("Delete", key=f"d{idx}", type="secondary", use_container_width=True):
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects(df)
                     st.rerun()
 
 st.markdown("---")
-st.caption("Progress auto-calculated • Color changes with progress • All data permanently saved")
+st.caption(
+    "All projects permanently saved • Progress auto-calculated • 5 stages tracked • Works perfectly with old and new data")
