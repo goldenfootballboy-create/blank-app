@@ -28,36 +28,42 @@ def load_data():
             st.warning("Gist 中沒有檔案，將建立新檔案")
             return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
-        # 自動取第一個檔案（通常只有一個）
         filename = next(iter(files))
-        file_data = files[filename]
-        content = file_data.get("content", "[]")
-
+        content = files[filename].get("content", "[]")
         data = json.loads(content)
+
+        if not data:  # 空陣列
+            return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
+
         df = pd.DataFrame(data)
 
-        # 轉換日期
-        if "預計交付日期" in df.columns:
-            df["預計交付日期"] = pd.to_datetime(df["預計交付日期"], errors="coerce").dt.date
+        # 防呆：確保必要欄位存在
+        required_columns = ["Project ID", "Customer", "負責人", "預計交付日期"]
+        for col in required_columns:
+            if col not in df.columns:
+                df[col] = None  # 或填預設值
 
-        return df
+        # 轉換日期（錯誤忽略）
+        if "預計交付日期" in df.columns:
+            df["預計交付日期"] = pd.to_datetime(df["預計交付日期"], errors='coerce').dt.date
+
+        return df[required_columns]  # 只保留我們需要的欄位
+
     except Exception as e:
         st.error(f"載入資料失敗：{e}")
-        st.info("請確認 Gist ID、正檔名、Token 權限（gist）是否正確")
+        st.info("請確認 Gist ID、Token 權限、JSON 格式是否正確")
         return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
 
 # === 儲存資料 ===
 def save_data(df):
     try:
-        # 轉換日期為字串
         df_save = df.copy()
         if "預計交付日期" in df_save.columns:
             df_save["預計交付日期"] = df_save["預計交付日期"].astype(str)
 
         content = json.dumps(df_save.to_dict(orient="records"), indent=2, ensure_ascii=False)
 
-        # 使用固定檔名 projects.json（建議你 Gist 檔名也是這個）
         payload = {
             "description": "YIP SHING Project Database - Auto updated",
             "files": {
@@ -113,12 +119,17 @@ with st.sidebar.form("add_form", clear_on_submit=True):
 # === 顯示與編輯 ===
 st.markdown("### 📋 Project 清單")
 
+# 安全計算剩餘天數（避免 KeyError）
 display_df = df.copy()
 today = date.today()
-display_df["剩餘天數"] = display_df["預計交付日期"].apply(
-    lambda x: f"{(x - today).days} 天" if (x - today).days >= 0 else f"已逾期 {-(x - today).days} 天"
-    if pd.notna(x) else "無日期"
-)
+
+if "預計交付日期" in display_df.columns and not display_df["預計交付日期"].isna().all():
+    display_df["剩餘天數"] = display_df["預計交付日期"].apply(
+        lambda x: f"{(x - today).days} 天" if pd.notna(x) and (x - today).days >= 0
+        else f"已逾期 {-(x - today).days} 天" if pd.notna(x) else "無日期"
+    )
+else:
+    display_df["剩餘天數"] = "無日期"
 
 edited_df = st.data_editor(
     display_df,
@@ -139,7 +150,7 @@ if st.button("💾 儲存所有變更到雲端"):
     save_data(final_df)
     st.rerun()
 
-# === 統計與匯出 ===
+# === 統計 ===
 col1, col2, col3 = st.columns(3)
 total = len(edited_df)
 overdue = len(edited_df[edited_df["剩餘天數"].str.contains("逾期", na=False)])
@@ -154,4 +165,4 @@ st.download_button(
     mime="text/csv"
 )
 
-st.caption("資料永久儲存在 GitHub Gist • 建議檔名使用 projects.json")
+st.caption("資料永久儲存在 GitHub Gist • 如首次使用請先新增一筆資料")
