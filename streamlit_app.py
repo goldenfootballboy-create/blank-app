@@ -87,8 +87,8 @@ else:
         # 整張卡片就是進度條 + 內容一體成型
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
-                    border-radius: 12px; 
-                    padding: 16px; 
+                    border-radius: 8px; 
+                    padding: 8px; 
                     margin: 12px 0; 
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
                     border-left: 8px solid {color};">
