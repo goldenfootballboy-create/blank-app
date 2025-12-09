@@ -44,12 +44,13 @@ def save_projects(df):
 df = load_projects()
 
 # ==============================================
-# 左側：New Project 表單（直接加入 5 個規格欄位）
+# 左側：New Project 表單（加入展開功能）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
 
     with st.form("add_form", clear_on_submit=True):
+        # 基本欄位（預設顯示）
         col1, col2 = st.columns(2)
         with col1:
             new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
@@ -61,14 +62,16 @@ with st.sidebar:
             new_supervisor = st.text_input("Supervisor")
             new_leadtime = st.date_input("Lead Time*", value=date.today())
 
-        st.markdown("### Project Specification")
-        spec_genset = st.text_input("Genset model")
-        spec_alternator = st.text_input("Alternator Model")
-        spec_controller = st.text_input("Controller")
-        spec_breaker = st.text_input("Circuit breaker Size")
-        spec_charger = st.text_input("Charger")
+        # 展開區：Project Specification + Description
+        with st.expander("Project Specification & Description", expanded=False):
+            st.markdown("**Project Specification**")
+            spec_genset = st.text_input("Genset model")
+            spec_alternator = st.text_input("Alternator Model")
+            spec_controller = st.text_input("Controller")
+            spec_breaker = st.text_input("Circuit breaker Size")
+            spec_charger = st.text_input("Charger")
 
-        new_desc = st.text_area("Description", height=100)
+            new_desc = st.text_area("Description", height=100)
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
             if not new_name.strip():
@@ -98,7 +101,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：專案列表 + Edit + Delete + Project Spec 顯示
+# 中間：專案列表 + Edit + Delete
 # ==============================================
 st.title("YIP SHING Project List")
 
@@ -142,7 +145,7 @@ else:
                     st.success(f"Deleted: {row['Project_Name']}")
                     st.rerun()
 
-            # 編輯模式（支援修改所有欄位，包括 5 個規格）
+            # 編輯模式（也支援展開規格）
             if st.session_state.get(f"editing_{idx}", False):
                 st.markdown("---")
                 with st.form(key=f"edit_form_{idx}"):
@@ -171,24 +174,26 @@ else:
                                                       value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(
                                                           row["Lead_Time"]) else date.today(), key=f"lead_e{idx}")
 
-                    st.markdown("### Project Specification")
-                    current_spec = row.get("Project_Spec", "")
-                    spec_lines = [line.split(": ", 1)[1] if ": " in line else "" for line in
-                                  current_spec.split("\n")] if current_spec else ["", "", "", "", ""]
-                    spec_genset = st.text_input("Genset model", value=spec_lines[0] if len(spec_lines) > 0 else "",
-                                                key=f"gs_e{idx}")
-                    spec_alternator = st.text_input("Alternator Model",
-                                                    value=spec_lines[1] if len(spec_lines) > 1 else "",
-                                                    key=f"alt_e{idx}")
-                    spec_controller = st.text_input("Controller", value=spec_lines[2] if len(spec_lines) > 2 else "",
-                                                    key=f"con_e{idx}")
-                    spec_breaker = st.text_input("Circuit breaker Size",
-                                                 value=spec_lines[3] if len(spec_lines) > 3 else "", key=f"brk_e{idx}")
-                    spec_charger = st.text_input("Charger", value=spec_lines[4] if len(spec_lines) > 4 else "",
-                                                 key=f"chg_e{idx}")
+                    with st.expander("Project Specification & Description", expanded=True):
+                        current_spec = row.get("Project_Spec", "")
+                        spec_lines = [line.split(": ", 1)[1] if ": " in line else "" for line in
+                                      current_spec.split("\n")] if current_spec else ["", "", "", "", ""]
+                        spec_genset = st.text_input("Genset model", value=spec_lines[0] if len(spec_lines) > 0 else "",
+                                                    key=f"gs_e{idx}")
+                        spec_alternator = st.text_input("Alternator Model",
+                                                        value=spec_lines[1] if len(spec_lines) > 1 else "",
+                                                        key=f"alt_e{idx}")
+                        spec_controller = st.text_input("Controller",
+                                                        value=spec_lines[2] if len(spec_lines) > 2 else "",
+                                                        key=f"con_e{idx}")
+                        spec_breaker = st.text_input("Circuit breaker Size",
+                                                     value=spec_lines[3] if len(spec_lines) > 3 else "",
+                                                     key=f"brk_e{idx}")
+                        spec_charger = st.text_input("Charger", value=spec_lines[4] if len(spec_lines) > 4 else "",
+                                                     key=f"chg_e{idx}")
 
-                    edit_desc = st.text_area("Description", value=row.get("Description", ""), height=100,
-                                             key=f"desc_e{idx}")
+                        edit_desc = st.text_area("Description", value=row.get("Description", ""), height=100,
+                                                 key=f"desc_e{idx}")
 
                     col_save, col_cancel = st.columns(2)
                     with col_save:
@@ -224,4 +229,4 @@ else:
                         st.rerun()
 
 st.markdown("---")
-st.caption("Project Specification fields are now directly in New Project form • All data permanently saved")
+st.caption("New Project form has expandable section for Project Specification & Description")
