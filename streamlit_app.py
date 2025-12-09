@@ -26,6 +26,8 @@ def load_projects():
         df["Year"] = 2025
     if "Real_Count" not in df.columns:
         df["Real_Count"] = df.get("Qty", 1)
+    if "Project_Spec" not in df.columns:
+        df["Project_Spec"] = ""
     return df
 
 
@@ -42,7 +44,7 @@ def save_projects(df):
 df = load_projects()
 
 # ==============================================
-# 左側：New Project 表單
+# 左側：New Project 表單（直接加入 5 個規格欄位）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -59,6 +61,13 @@ with st.sidebar:
             new_supervisor = st.text_input("Supervisor")
             new_leadtime = st.date_input("Lead Time*", value=date.today())
 
+        st.markdown("### Project Specification")
+        spec_genset = st.text_input("Genset model")
+        spec_alternator = st.text_input("Alternator Model")
+        spec_controller = st.text_input("Controller")
+        spec_breaker = st.text_input("Circuit breaker Size")
+        spec_charger = st.text_input("Charger")
+
         new_desc = st.text_area("Description", height=100)
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
@@ -67,6 +76,10 @@ with st.sidebar:
             elif new_name in df["Project_Name"].values if len(df) > 0 else False:
                 st.error("Project Name already exists!")
             else:
+                spec_text = ""
+                if any([spec_genset, spec_alternator, spec_controller, spec_breaker, spec_charger]):
+                    spec_text = f"Genset model: {spec_genset or '—'}\nAlternator Model: {spec_alternator or '—'}\nController: {spec_controller or '—'}\nCircuit breaker Size: {spec_breaker or '—'}\nCharger: {spec_charger or '—'}"
+
                 new_project = {
                     "Project_Type": new_type,
                     "Project_Name": new_name,
@@ -76,6 +89,7 @@ with st.sidebar:
                     "Supervisor": new_supervisor or "",
                     "Qty": new_qty,
                     "Real_Count": new_qty,
+                    "Project_Spec": spec_text,
                     "Description": new_desc or "",
                 }
                 df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
@@ -84,7 +98,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：專案列表 + Edit + Delete
+# 中間：專案列表 + Edit + Delete + Project Spec 顯示
 # ==============================================
 st.title("YIP SHING Project List")
 
@@ -99,7 +113,6 @@ else:
         with st.expander(
                 f"**{row['Project_Name']}** • {row['Project_Type']} • {row.get('Customer', '') or 'No Customer'}",
                 expanded=False):
-            # 正常顯示內容
             col_content, col_buttons = st.columns([8, 2])
 
             with col_content:
@@ -114,6 +127,7 @@ else:
                         <strong>Supervisor:</strong> {row.get('Supervisor', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
                         <strong>Qty:</strong> {row.get('Qty', 0)}
                     </p>
+                    {f"<p style='margin:10px 0; font-size:1.1rem; line-height:1.6; white-space: pre-wrap;'><strong>Project Spec.:</strong><br>{row.get('Project_Spec', '—')}</p>" if row.get('Project_Spec') else ""}
                     {f"<p style='margin:10px 0; font-size:1.1rem; line-height:1.5;'><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
                 </div>
                 """, unsafe_allow_html=True)
@@ -128,7 +142,7 @@ else:
                     st.success(f"Deleted: {row['Project_Name']}")
                     st.rerun()
 
-            # 編輯模式
+            # 編輯模式（支援修改所有欄位，包括 5 個規格）
             if st.session_state.get(f"editing_{idx}", False):
                 st.markdown("---")
                 with st.form(key=f"edit_form_{idx}"):
@@ -141,23 +155,40 @@ else:
                                                                                                      "Open Set",
                                                                                                      "Scania", "Marine",
                                                                                                      "K50G3"] else 0,
-                                                 key=f"type_{idx}")
-                        edit_name = st.text_input("Project Name*", value=row["Project_Name"], key=f"name_{idx}")
+                                                 key=f"type_e{idx}")
+                        edit_name = st.text_input("Project Name*", value=row["Project_Name"], key=f"name_e{idx}")
                         edit_year = st.selectbox("Year*", [2024, 2025, 2026],
                                                  index=[2024, 2025, 2026].index(row["Year"]) if row["Year"] in [2024,
                                                                                                                 2025,
                                                                                                                 2026] else 1,
-                                                 key=f"year_{idx}")
-                        edit_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty", 1)), key=f"qty_{idx}")
+                                                 key=f"year_e{idx}")
+                        edit_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty", 1)), key=f"qty_e{idx}")
                     with col2:
-                        edit_customer = st.text_input("Customer", value=row.get("Customer", ""), key=f"cust_{idx}")
-                        edit_supervisor = st.text_input("Supervisor", value=row.get("Supervisor", ""), key=f"sup_{idx}")
+                        edit_customer = st.text_input("Customer", value=row.get("Customer", ""), key=f"cust_e{idx}")
+                        edit_supervisor = st.text_input("Supervisor", value=row.get("Supervisor", ""),
+                                                        key=f"sup_e{idx}")
                         edit_leadtime = st.date_input("Lead Time*",
                                                       value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(
-                                                          row["Lead_Time"]) else date.today(), key=f"lead_{idx}")
+                                                          row["Lead_Time"]) else date.today(), key=f"lead_e{idx}")
+
+                    st.markdown("### Project Specification")
+                    current_spec = row.get("Project_Spec", "")
+                    spec_lines = [line.split(": ", 1)[1] if ": " in line else "" for line in
+                                  current_spec.split("\n")] if current_spec else ["", "", "", "", ""]
+                    spec_genset = st.text_input("Genset model", value=spec_lines[0] if len(spec_lines) > 0 else "",
+                                                key=f"gs_e{idx}")
+                    spec_alternator = st.text_input("Alternator Model",
+                                                    value=spec_lines[1] if len(spec_lines) > 1 else "",
+                                                    key=f"alt_e{idx}")
+                    spec_controller = st.text_input("Controller", value=spec_lines[2] if len(spec_lines) > 2 else "",
+                                                    key=f"con_e{idx}")
+                    spec_breaker = st.text_input("Circuit breaker Size",
+                                                 value=spec_lines[3] if len(spec_lines) > 3 else "", key=f"brk_e{idx}")
+                    spec_charger = st.text_input("Charger", value=spec_lines[4] if len(spec_lines) > 4 else "",
+                                                 key=f"chg_e{idx}")
 
                     edit_desc = st.text_area("Description", value=row.get("Description", ""), height=100,
-                                             key=f"desc_{idx}")
+                                             key=f"desc_e{idx}")
 
                     col_save, col_cancel = st.columns(2)
                     with col_save:
@@ -169,6 +200,10 @@ else:
                         if not edit_name.strip():
                             st.error("Project Name is required!")
                         else:
+                            spec_text = ""
+                            if any([spec_genset, spec_alternator, spec_controller, spec_breaker, spec_charger]):
+                                spec_text = f"Genset model: {spec_genset or '—'}\nAlternator Model: {spec_alternator or '—'}\nController: {spec_controller or '—'}\nCircuit breaker Size: {spec_breaker or '—'}\nCharger: {spec_charger or '—'}"
+
                             df.at[idx, "Project_Type"] = edit_type
                             df.at[idx, "Project_Name"] = edit_name
                             df.at[idx, "Year"] = int(edit_year)
@@ -177,6 +212,7 @@ else:
                             df.at[idx, "Supervisor"] = edit_supervisor or ""
                             df.at[idx, "Qty"] = edit_qty
                             df.at[idx, "Real_Count"] = edit_qty
+                            df.at[idx, "Project_Spec"] = spec_text
                             df.at[idx, "Description"] = edit_desc or ""
                             save_projects(df)
                             st.session_state[f"editing_{idx}"] = False
@@ -188,5 +224,4 @@ else:
                         st.rerun()
 
 st.markdown("---")
-st.caption(
-    "Projects are permanently saved • Click project name to expand • Edit and Delete buttons available when expanded")
+st.caption("Project Specification fields are now directly in New Project form • All data permanently saved")
