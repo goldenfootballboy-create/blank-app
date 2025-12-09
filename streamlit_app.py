@@ -15,7 +15,7 @@ headers = {
 }
 
 
-# === 讀取資料 ===
+# === 讀取資料（縮短快取時間 + 可手動清除）===
 @st.cache_data(ttl=30, show_spinner="正在從雲端載入資料...")
 def load_data():
     try:
@@ -36,13 +36,11 @@ def load_data():
 
         df = pd.DataFrame(data)
 
-        # 確保欄位存在
         required = ["Project ID", "Customer", "負責人", "預計交付日期"]
         for col in required:
             if col not in df.columns:
                 df[col] = None
 
-        # 轉換日期
         if "預計交付日期" in df.columns:
             df["預計交付日期"] = pd.to_datetime(df["預計交付日期"], errors='coerce').dt.date
 
@@ -53,7 +51,7 @@ def load_data():
         return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
 
-# === 儲存資料（立即儲存）===
+# === 儲存資料並強制清除快取 ===
 def save_data(df):
     try:
         df_save = df.copy()
@@ -72,8 +70,10 @@ def save_data(df):
         }
         response = requests.patch(API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        # 清除快取，讓下次載入時看到最新資料
+
+        # 關鍵：清除快取，讓下次 load_data 讀最新資料
         load_data.clear()
+
     except Exception as e:
         st.error(f"儲存失敗：{e}")
 
@@ -82,10 +82,9 @@ def save_data(df):
 st.set_page_config(page_title="YIP SHING Project Database", layout="wide")
 st.title("🗂️ YIP SHING Project Database")
 
-# 載入目前資料
 df = load_data()
 
-# === 側邊欄：新增 Project（立即儲存並更新）===
+# === 新增 Project（立即儲存 + 清除快取 + 刷新）===
 st.sidebar.header("📝 新增 Project")
 with st.sidebar.form("add_form", clear_on_submit=True):
     st.markdown("### 填寫以下資訊新增專案")
@@ -107,22 +106,20 @@ with st.sidebar.form("add_form", clear_on_submit=True):
         elif new_id in df["Project ID"].values:
             st.error("此 Project ID 已存在！")
         else:
-            # 新增一筆
-            new_row = {
+            new_row = pd.DataFrame([{
                 "Project ID": new_id,
                 "Customer": new_customer,
                 "負責人": new_manager,
                 "預計交付日期": new_date
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            save_data(df)
-            st.success(f"✅ 已新增 Project: {new_id}")
-            st.rerun()  # 立即刷新畫面
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            save_data(df)  # 儲存並清除快取
+            st.success(f"✅ 已新增 Project: {new_id}，畫面即將更新...")
+            st.rerun()  # 刷新畫面，會重新執行 load_data() 讀最新資料
 
-# === 中間：Project 清單（即時顯示 + 可編輯）===
+# === 其餘部分不變（顯示清單、編輯、儲存按鈕等）===
 st.markdown("### 📋 Project 清單")
 
-# 計算剩餘天數
 display_df = df.copy()
 today = date.today()
 if not display_df.empty and "預計交付日期" in display_df.columns:
@@ -133,7 +130,6 @@ if not display_df.empty and "預計交付日期" in display_df.columns:
 else:
     display_df["剩餘天數"] = "無日期"
 
-# 可編輯表格
 edited_df = st.data_editor(
     display_df,
     column_config={
@@ -148,26 +144,20 @@ edited_df = st.data_editor(
     hide_index=True,
 )
 
-# 編輯後儲存按鈕
-if st.button("💾 儲存所有變更到雲端（包含表格編輯與刪除）"):
+if st.button("💾 儲存所有變更到雲端（表格編輯/刪除）"):
     final_df = edited_df.drop(columns=["剩餘天數"], errors="ignore")
     save_data(final_df)
     st.success("所有變更已儲存！")
     st.rerun()
 
-# === 統計總覽 ===
+# 統計與匯出（不變）
 col1, col2, col3 = st.columns(3)
 total = len(edited_df)
 overdue = len(edited_df[edited_df["剩餘天數"].str.contains("逾期", na=False)]) if "剩餘天數" in edited_df.columns else 0
+with col1: st.metric("總 Project 數", total)
+with col2: st.metric("進行中", total - overdue)
+with col3: st.metric("已逾期", overdue, delta_color="inverse")
 
-with col1:
-    st.metric("總 Project 數", total)
-with col2:
-    st.metric("進行中", total - overdue)
-with col3:
-    st.metric("已逾期", overdue, delta_color="inverse")
-
-# === 匯出 ===
 st.download_button(
     label="📥 匯出為 CSV",
     data=edited_df.to_csv(index=False).encode("utf-8"),
@@ -175,4 +165,4 @@ st.download_button(
     mime="text/csv"
 )
 
-st.caption("新增 Project 會立即儲存並顯示在清單中 • 表格內編輯/刪除後請點「儲存所有變更」")
+st.caption("新增 Project 會立即顯示在清單中 • 編輯表格後請點「儲存所有變更」")
