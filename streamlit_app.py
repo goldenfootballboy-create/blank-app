@@ -5,10 +5,9 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存 + 完全防呆
+# 永久儲存
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
-
 if not os.path.exists(PROJECTS_FILE):
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump([], f, ensure_ascii=False, indent=2)
@@ -19,24 +18,17 @@ def load_projects():
         data = json.load(f)
     if not data:
         return pd.DataFrame()
-
     df = pd.DataFrame(data)
-
-    # 補齊所有欄位
     required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
                 "Qty", "Real_Count", "Project_Spec", "Description",
                 "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
-    for col in required:
-        if col not in df.columns:
-            df[col] = None
-
-    # 正確的日期欄位列表（已修正語法錯誤）
+    for c in required:
+        if c not in df.columns: df[c] = None
     date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
                  "Delivery_Complete"]
     for c in date_cols:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
-
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce").fillna(2025).astype(int)
     if "Real_Count" not in df.columns:
         df["Real_Count"] = df.get("Qty", 1)
@@ -88,7 +80,7 @@ def fmt(d):
 
 
 # ==============================================
-# 左側：New Project（永遠都在）
+# 左側：New Project
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -154,25 +146,25 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：超小巧進度卡（完美版）
+# 中間：Project Counter + 進度卡片（完美融合）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
-# ==============================================
-# 小巧 Project Counter（只加這段！）
-# ==============================================
+
+# 小巧 Project Counter
 if len(df) > 0:
     st.markdown("#### Project Counter")
     counter = df["Project_Type"].value_counts().sort_index()
     total = len(df)
 
-    # 自動換行 + 小卡片設計
     cols = st.columns(len(counter) + 1)
     with cols[0]:
         st.metric("Total", total)
     for i, (ptype, count) in enumerate(counter.items()):
         with cols[i + 1]:
-            metric(f"{ptype}", count)
+            st.metric(ptype, count)
     st.markdown("---")
+
+# 小巧進度卡片（不展開就看到所有關鍵資訊）
 if len(df) == 0:
     st.info("No projects yet. Add one on the left.")
 else:
@@ -220,5 +212,89 @@ else:
                 save_projects(df)
                 st.rerun()
 
+        # Edit 表單（完整功能）
+        if st.session_state.get("editing_index") == idx:
+            st.markdown("---")
+            st.subheader(f"Editing: {row['Project_Name']}")
+            with st.form(key=f"edit_form_{idx}"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    e_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"],
+                                          index=["Enclosure", "Open Set", "Scania", "Marine", "K50G3"].index(
+                                              row["Project_Type"]))
+                    e_name = st.text_input("Project Name*", value=row["Project_Name"])
+                    e_year = st.selectbox("Year*", [2024, 2025, 2026], index=[2024, 2025, 2026].index(row["Year"]))
+                    e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty", 1)))
+                with c2:
+                    e_customer = st.text_input("Customer", value=row.get("Customer", ""))
+                    e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor", ""))
+                    e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(
+                        row["Lead_Time"]) else date.today())
+
+                with st.expander("Project Specification & Progress Dates", expanded=True):
+                    curr_spec = row.get("Project_Spec", "")
+                    lines = [line.split(": ", 1)[1] if ": " in line else "" for line in
+                             curr_spec.split("\n")] if curr_spec else ["", "", "", "", ""]
+                    e_s1 = st.text_input("Genset model", value=lines[0] if len(lines) > 0 else "")
+                    e_s2 = st.text_input("Alternator Model", value=lines[1] if len(lines) > 1 else "")
+                    e_s3 = st.text_input("Controller", value=lines[2] if len(lines) > 2 else "")
+                    e_s4 = st.text_input("Circuit breaker Size", value=lines[3] if len(lines) > 3 else "")
+                    e_s5 = st.text_input("Charger", value=lines[4] if len(lines) > 4 else "")
+
+                    st.markdown("**Progress Dates**")
+                    e_d1 = st.date_input("Parts Arrival", value=pd.to_datetime(row["Parts_Arrival"]).date() if pd.notna(
+                        row["Parts_Arrival"]) else None, key=f"d1_{idx}")
+                    e_d2 = st.date_input("Installation Complete",
+                                         value=pd.to_datetime(row["Installation_Complete"]).date() if pd.notna(
+                                             row["Installation_Complete"]) else None, key=f"d2_{idx}")
+                    e_d3 = st.date_input("Testing Complete",
+                                         value=pd.to_datetime(row["Testing_Complete"]).date() if pd.notna(
+                                             row["Testing_Complete"]) else None, key=f"d3_{idx}")
+                    e_d4 = st.date_input("Cleaning Complete",
+                                         value=pd.to_datetime(row["Cleaning_Complete"]).date() if pd.notna(
+                                             row["Cleaning_Complete"]) else None, key=f"d4_{idx}")
+                    e_d5 = st.date_input("Delivery Complete",
+                                         value=pd.to_datetime(row["Delivery_Complete"]).date() if pd.notna(
+                                             row["Delivery_Complete"]) else None, key=f"d5_{idx}")
+
+                    e_desc = st.text_area("Description", value=row.get("Description", ""), height=100)
+
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.form_submit_button("Save Changes", type="primary"):
+                        if not e_name.strip():
+                            st.error("Project Name required!")
+                        else:
+                            new_spec = "\n".join([
+                                f"Genset model: {e_s1 or '—'}",
+                                f"Alternator Model: {e_s2 or '—'}",
+                                f"Controller: {e_s3 or '—'}",
+                                f"Circuit breaker Size: {e_s4 or '—'}",
+                                f"Charger: {e_s5 or '—'}"
+                            ])
+                            df.at[idx, "Project_Type"] = e_type
+                            df.at[idx, "Project_Name"] = e_name
+                            df.at[idx, "Year"] = int(e_year)
+                            df.at[idx, "Lead_Time"] = e_leadtime.strftime("%Y-%m-%d")
+                            df.at[idx, "Customer"] = e_customer or ""
+                            df.at[idx, "Supervisor"] = e_supervisor or ""
+                            df.at[idx, "Qty"] = e_qty
+                            df.at[idx, "Real_Count"] = e_qty
+                            df.at[idx, "Project_Spec"] = new_spec
+                            df.at[idx, "Description"] = e_desc or ""
+                            df.at[idx, "Parts_Arrival"] = e_d1.strftime("%Y-%m-%d") if e_d1 else None
+                            df.at[idx, "Installation_Complete"] = e_d2.strftime("%Y-%m-%d") if e_d2 else None
+                            df.at[idx, "Testing_Complete"] = e_d3.strftime("%Y-%m-%d") if e_d3 else None
+                            df.at[idx, "Cleaning_Complete"] = e_d4.strftime("%Y-%m-%d") if e_d4 else None
+                            df.at[idx, "Delivery_Complete"] = e_d5.strftime("%Y-%m-%d") if e_d5 else None
+                            save_projects(df)
+                            del st.session_state.editing_index
+                            st.success("Updated!")
+                            st.rerun()
+                with col_cancel:
+                    if st.form_submit_button("Cancel"):
+                        del st.session_state.editing_index
+                        st.rerun()
+
 st.markdown("---")
-st.caption("Compact progress cards • All key info visible • Edit & Delete work perfectly")
+st.caption("YIP SHING Project Dashboard • Project Counter • Progress cards • Full edit support")
