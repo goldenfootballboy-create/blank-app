@@ -88,7 +88,7 @@ else:
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; 
-                    padding: 8px; 
+                    padding: 2px; 
                     margin: 12px 0; 
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
                     border-left: 8px solid {color};">
