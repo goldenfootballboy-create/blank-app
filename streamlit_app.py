@@ -25,9 +25,9 @@ st.sidebar.header("📝 新增 Project")
 with st.sidebar.form("add_project_form", clear_on_submit=True):
     st.write("### 填寫以下資訊新增專案")
 
-    new_id = st.text_input("Project ID*", placeholder="例如: YIP-004", help="必填，唯一識別碼")
-    new_customer = st.text_input("Customer*", placeholder="客戶名稱", help="必填")
-    new_manager = st.text_input("負責人*", placeholder="負責人姓名", help="必填")
+    new_id = st.text_input("Project ID*", help="必填，唯一識別碼")
+    new_customer = st.text_input("Customer*", help="必填")
+    new_manager = st.text_input("負責人*", help="必填")
 
     # 日歷選擇預計交付日期
     new_leadtime_date = st.date_input(
