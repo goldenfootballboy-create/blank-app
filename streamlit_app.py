@@ -81,7 +81,7 @@ def save_data(df):
 
 # === 主程式 ===
 st.set_page_config(page_title="YIP SHING Project Database", layout="wide")
-st.title("🗂️ YIP SHING Project Database（永久儲存版）")
+st.title("YIP SHING Project Database")
 
 df = load_data()
 
@@ -89,15 +89,15 @@ df = load_data()
 st.sidebar.header("📝 新增 Project")
 with st.sidebar.form("add_form", clear_on_submit=True):
     st.write("### 填寫以下資訊新增專案")
-    new_id = st.text_input("Project ID*", placeholder="YIP-004")
+    new_id = st.text_input("Project ID*")
     new_customer = st.text_input("Customer*", placeholder="客戶名稱")
-    new_manager = st.text_input("負責人*", placeholder="負責人姓名")
+    new_manager = st.text_input("負責人*", placeholder="主管姓名")
     new_date = st.date_input(
         "預計交付日期 (Lead Time)*",
         value=date.today() + timedelta(days=60),
         min_value=date.today()
     )
-    submitted = st.form_submit_button("✨ 新增 Project")
+    submitted = st.form_submit_button("新增 Project")
 
     if submitted:
         if new_id and new_customer and new_manager:
