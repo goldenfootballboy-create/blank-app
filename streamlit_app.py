@@ -4,10 +4,9 @@ import requests
 import json
 from datetime import date, timedelta
 
-# === 從 Secrets 讀取 GitHub 資訊 ===
+# === 從 Secrets 讀取 ===
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GIST_ID = st.secrets["GIST_ID"]
-GIST_FILENAME = "yip_shing_projects.json"
 API_URL = f"https://api.github.com/gists/{GIST_ID}"
 
 headers = {
@@ -16,40 +15,54 @@ headers = {
 }
 
 
-# === 讀取資料從 GitHub Gist ===
-@st.cache_data(ttl=60)  # 每分鐘重新讀取一次
+# === 讀取資料 ===
+@st.cache_data(ttl=60)
 def load_data():
     try:
         response = requests.get(API_URL, headers=headers)
         response.raise_for_status()
         gist = response.json()
-        file_content = gist["files"][GIST_FILENAME]["content"]
-        data = json.loads(file_content)
+        files = gist.get("files", {})
+
+        if not files:
+            st.warning("Gist 中沒有檔案，將建立新檔案")
+            return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
+
+        # 自動取第一個檔案（通常只有一個）
+        filename = next(iter(files))
+        file_data = files[filename]
+        content = file_data.get("content", "[]")
+
+        data = json.loads(content)
         df = pd.DataFrame(data)
-        # 確保日期欄位為 date 類型
+
+        # 轉換日期
         if "預計交付日期" in df.columns:
-            df["預計交付日期"] = pd.to_datetime(df["預計交付日期"]).dt.date
+            df["預計交付日期"] = pd.to_datetime(df["預計交付日期"], errors="coerce").dt.date
+
         return df
     except Exception as e:
         st.error(f"載入資料失敗：{e}")
-        # 失敗時返回空 DataFrame
+        st.info("請確認 Gist ID、正檔名、Token 權限（gist）是否正確")
         return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
 
-# === 儲存資料到 GitHub Gist ===
+# === 儲存資料 ===
 def save_data(df):
     try:
-        # 轉換日期為字串（JSON 必須）
+        # 轉換日期為字串
         df_save = df.copy()
         if "預計交付日期" in df_save.columns:
             df_save["預計交付日期"] = df_save["預計交付日期"].astype(str)
 
-        content = df_save.to_dict(orient="records")
+        content = json.dumps(df_save.to_dict(orient="records"), indent=2, ensure_ascii=False)
+
+        # 使用固定檔名 projects.json（建議你 Gist 檔名也是這個）
         payload = {
             "description": "YIP SHING Project Database - Auto updated",
             "files": {
-                GIST_FILENAME: {
-                    "content": json.dumps(content, indent=2, ensure_ascii=False)
+                "projects.json": {
+                    "content": content
                 }
             }
         }
@@ -66,7 +79,7 @@ st.title("🗂️ YIP SHING Project Database（永久儲存版）")
 
 df = load_data()
 
-# === 側邊欄：新增 Project ===
+# === 新增 Project ===
 st.sidebar.header("📝 新增 Project")
 with st.sidebar.form("add_form", clear_on_submit=True):
     st.write("### 填寫以下資訊新增專案")
@@ -97,14 +110,14 @@ with st.sidebar.form("add_form", clear_on_submit=True):
         else:
             st.error("請填寫所有必填欄位")
 
-# === 顯示與編輯表格 ===
+# === 顯示與編輯 ===
 st.markdown("### 📋 Project 清單")
 
-# 計算剩餘天數
 display_df = df.copy()
 today = date.today()
 display_df["剩餘天數"] = display_df["預計交付日期"].apply(
     lambda x: f"{(x - today).days} 天" if (x - today).days >= 0 else f"已逾期 {-(x - today).days} 天"
+    if pd.notna(x) else "無日期"
 )
 
 edited_df = st.data_editor(
@@ -121,9 +134,7 @@ edited_df = st.data_editor(
     hide_index=True,
 )
 
-# 儲存按鈕
 if st.button("💾 儲存所有變更到雲端"):
-    # 移除輔助欄位後儲存
     final_df = edited_df.drop(columns=["剩餘天數"], errors="ignore")
     save_data(final_df)
     st.rerun()
@@ -143,4 +154,4 @@ st.download_button(
     mime="text/csv"
 )
 
-st.caption("資料永久儲存在 GitHub Gist • 每次編輯後請點「儲存所有變更到雲端」")
+st.caption("資料永久儲存在 GitHub Gist • 建議檔名使用 projects.json")
