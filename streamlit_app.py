@@ -125,7 +125,6 @@ with st.sidebar:
             elif new_name in df["Project_Name"].values:
                 st.error("Name exists!")
             else:
-                # 用多行字串避免 \n 問題
                 spec_lines = [
                     f"Genset model: {s1 or '—'}",
                     f"Alternator Model: {s2 or '—'}",
@@ -136,16 +135,10 @@ with st.sidebar:
                 spec_text = "\n".join(spec_lines)
 
                 new_project = {
-                    "Project_Type": new_type,
-                    "Project_Name": new_name,
-                    "Year": int(new_year),
-                    "Lead_Time": new_leadtime.strftime("%Y-%m-%d"),
-                    "Customer": new_customer or "",
-                    "Supervisor": new_supervisor or "",
-                    "Qty": new_qty,
-                    "Real_Count": new_qty,
-                    "Project_Spec": spec_text,
-                    "Description": desc or "",
+                    "Project_Type": new_type, "Project_Name": new_name, "Year": int(new_year),
+                    "Lead_Time": new_leadtime.strftime("%Y-%m-%d"), "Customer": new_customer or "",
+                    "Supervisor": new_supervisor or "", "Qty": new_qty, "Real_Count": new_qty,
+                    "Project_Spec": spec_text, "Description": desc or "",
                     "Parts_Arrival": d1.strftime("%Y-%m-%d") if d1 else None,
                     "Installation_Complete": d2.strftime("%Y-%m-%d") if d2 else None,
                     "Testing_Complete": d3.strftime("%Y-%m-%d") if d3 else None,
@@ -158,7 +151,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：專案列表（顯示 + Edit + Delete）
+# 中間：專案列表（Project Spec 放最上面，進度日期隱藏）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -174,6 +167,7 @@ else:
             col_l, col_r = st.columns([9, 2])
 
             with col_l:
+                # 進度條
                 st.markdown(f"""
                 <div style="background:{color}; color:white; padding:10px 20px; border-radius:8px; font-weight:bold;">
                     Progress: {pct}% Complete
@@ -183,19 +177,21 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
+                # Project Spec 放最上面
+                if row.get("Project_Spec"):
+                    st.markdown(f"""
+                    <div style="background:#f0f8ff; padding:15px; border-radius:8px; margin:15px 0; border-left:5px solid #1fb429;">
+                        <strong>Project Specification:</strong><br>
+                        <pre style='margin:8px 0; white-space: pre-wrap; font-family: inherit;'>{row['Project_Spec']}</pre>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # 基本資訊
                 st.markdown(f"""
-                <div style="background:#f8f9fa; padding:20px; border-radius:10px; border-left:8px solid {color}; line-height:1.8;">
-                    <strong>Year:</strong> {row['Year']} | <strong>Lead Time:</strong> {fmt(row['Lead_Time'])}<br>
-                    <strong>Customer:</strong> {row.get('Customer', '—')} | <strong>Supervisor:</strong> {row.get('Supervisor', '—')} | <strong>Qty:</strong> {row.get('Qty', 0)}<br>
-                    {f"<pre style='background:#f0f0f0; padding:12px; border-radius:6px; margin:15px 0; white-space: pre-wrap;'>{row.get('Project_Spec', '')}</pre>" if row.get('Project_Spec') else ""}
+                <div style="background:#f8f9fa; padding:20px; border-radius:10px; border-left:8px solid {color};">
+                    <p><strong>Year:</strong> {row['Year']} | <strong>Lead Time:</strong> {fmt(row['Lead_Time'])}</p>
+                    <p><strong>Customer:</strong> {row.get('Customer', '—')} | <strong>Supervisor:</strong> {row.get('Supervisor', '—')} | <strong>Qty:</strong> {row.get('Qty', 0)}</p>
                     {f"<p><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
-                    <hr style="border:1px dashed #ccc;">
-                    <strong>Progress Dates:</strong><br>
-                    Parts Arrival: {fmt(row.get('Parts_Arrival'))}<br>
-                    Installation: {fmt(row.get('Installation_Complete'))}<br>
-                    Testing: {fmt(row.get('Testing_Complete'))}<br>
-                    Cleaning: {fmt(row.get('Cleaning_Complete'))}<br>
-                    Delivery: {fmt(row.get('Delivery_Complete'))}
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -207,10 +203,11 @@ else:
                     save_projects(df)
                     st.rerun()
 
-            # 完整的 Edit 功能（可修改所有欄位）
+            # Edit 表單（包含 5 個進度日期）
             if st.session_state.get("editing_index") == idx:
                 st.markdown("---")
                 with st.form(key=f"edit_form_{idx}"):
+                    # 同新增表單格式
                     c1, c2 = st.columns(2)
                     with c1:
                         e_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"],
@@ -298,4 +295,5 @@ else:
                             st.rerun()
 
 st.markdown("---")
-st.caption("All projects permanently saved • Full edit support • Progress auto-updates")
+st.caption(
+    "Project Spec. moved to top • Progress dates hidden in main view • Only visible when editing • Clean & beautiful")
