@@ -16,7 +16,7 @@ headers = {
 
 
 # === 讀取資料 ===
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30, show_spinner="正在從雲端載入資料...")
 def load_data():
     try:
         response = requests.get(API_URL, headers=headers)
@@ -25,37 +25,35 @@ def load_data():
         files = gist.get("files", {})
 
         if not files:
-            st.warning("Gist 中沒有檔案，將建立新檔案")
             return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
         filename = next(iter(files))
         content = files[filename].get("content", "[]")
         data = json.loads(content)
 
-        if not data:  # 空陣列
+        if not data:
             return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
         df = pd.DataFrame(data)
 
-        # 防呆：確保必要欄位存在
-        required_columns = ["Project ID", "Customer", "負責人", "預計交付日期"]
-        for col in required_columns:
+        # 確保欄位存在
+        required = ["Project ID", "Customer", "負責人", "預計交付日期"]
+        for col in required:
             if col not in df.columns:
-                df[col] = None  # 或填預設值
+                df[col] = None
 
-        # 轉換日期（錯誤忽略）
+        # 轉換日期
         if "預計交付日期" in df.columns:
             df["預計交付日期"] = pd.to_datetime(df["預計交付日期"], errors='coerce').dt.date
 
-        return df[required_columns]  # 只保留我們需要的欄位
+        return df[required]
 
     except Exception as e:
         st.error(f"載入資料失敗：{e}")
-        st.info("請確認 Gist ID、Token 權限、JSON 格式是否正確")
         return pd.DataFrame(columns=["Project ID", "Customer", "負責人", "預計交付日期"])
 
 
-# === 儲存資料 ===
+# === 儲存資料（立即儲存）===
 def save_data(df):
     try:
         df_save = df.copy()
@@ -65,7 +63,7 @@ def save_data(df):
         content = json.dumps(df_save.to_dict(orient="records"), indent=2, ensure_ascii=False)
 
         payload = {
-            "description": "YIP SHING Project Database - Auto updated",
+            "description": "YIP SHING Project Database - Updated",
             "files": {
                 "projects.json": {
                     "content": content
@@ -74,56 +72,60 @@ def save_data(df):
         }
         response = requests.patch(API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        st.success("資料已成功儲存到雲端！")
+        # 清除快取，讓下次載入時看到最新資料
+        load_data.clear()
     except Exception as e:
         st.error(f"儲存失敗：{e}")
 
 
 # === 主程式 ===
 st.set_page_config(page_title="YIP SHING Project Database", layout="wide")
-st.title("YIP SHING Project Database")
+st.title("🗂️ YIP SHING Project Database")
 
+# 載入目前資料
 df = load_data()
 
-# === 新增 Project ===
+# === 側邊欄：新增 Project（立即儲存並更新）===
 st.sidebar.header("📝 新增 Project")
 with st.sidebar.form("add_form", clear_on_submit=True):
-    st.write("### 填寫以下資訊新增專案")
-    new_id = st.text_input("Project ID*")
+    st.markdown("### 填寫以下資訊新增專案")
+
+    new_id = st.text_input("Project ID*", placeholder="例如: YIP-004")
     new_customer = st.text_input("Customer*", placeholder="客戶名稱")
-    new_manager = st.text_input("負責人*", placeholder="主管姓名")
+    new_manager = st.text_input("負責人*", placeholder="負責人姓名")
     new_date = st.date_input(
         "預計交付日期 (Lead Time)*",
         value=date.today() + timedelta(days=60),
         min_value=date.today()
     )
-    submitted = st.form_submit_button("新增 Project")
+
+    submitted = st.form_submit_button("✨ 新增 Project")
 
     if submitted:
-        if new_id and new_customer and new_manager:
-            if new_id in df["Project ID"].values:
-                st.error("Project ID 已存在！")
-            else:
-                new_row = pd.DataFrame([{
-                    "Project ID": new_id,
-                    "Customer": new_customer,
-                    "負責人": new_manager,
-                    "預計交付日期": new_date
-                }])
-                df = pd.concat([df, new_row], ignore_index=True)
-                save_data(df)
-                st.rerun()
+        if not (new_id and new_customer and new_manager):
+            st.error("請填寫所有必填欄位（*）")
+        elif new_id in df["Project ID"].values:
+            st.error("此 Project ID 已存在！")
         else:
-            st.error("請填寫所有必填欄位")
+            # 新增一筆
+            new_row = {
+                "Project ID": new_id,
+                "Customer": new_customer,
+                "負責人": new_manager,
+                "預計交付日期": new_date
+            }
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            save_data(df)
+            st.success(f"✅ 已新增 Project: {new_id}")
+            st.rerun()  # 立即刷新畫面
 
-# === 顯示與編輯 ===
+# === 中間：Project 清單（即時顯示 + 可編輯）===
 st.markdown("### 📋 Project 清單")
 
-# 安全計算剩餘天數（避免 KeyError）
+# 計算剩餘天數
 display_df = df.copy()
 today = date.today()
-
-if "預計交付日期" in display_df.columns and not display_df["預計交付日期"].isna().all():
+if not display_df.empty and "預計交付日期" in display_df.columns:
     display_df["剩餘天數"] = display_df["預計交付日期"].apply(
         lambda x: f"{(x - today).days} 天" if pd.notna(x) and (x - today).days >= 0
         else f"已逾期 {-(x - today).days} 天" if pd.notna(x) else "無日期"
@@ -131,6 +133,7 @@ if "預計交付日期" in display_df.columns and not display_df["預計交付�
 else:
     display_df["剩餘天數"] = "無日期"
 
+# 可編輯表格
 edited_df = st.data_editor(
     display_df,
     column_config={
@@ -145,24 +148,31 @@ edited_df = st.data_editor(
     hide_index=True,
 )
 
-if st.button("💾 儲存所有變更到雲端"):
+# 編輯後儲存按鈕
+if st.button("💾 儲存所有變更到雲端（包含表格編輯與刪除）"):
     final_df = edited_df.drop(columns=["剩餘天數"], errors="ignore")
     save_data(final_df)
+    st.success("所有變更已儲存！")
     st.rerun()
 
-# === 統計 ===
+# === 統計總覽 ===
 col1, col2, col3 = st.columns(3)
 total = len(edited_df)
-overdue = len(edited_df[edited_df["剩餘天數"].str.contains("逾期", na=False)])
-with col1: st.metric("總 Project", total)
-with col2: st.metric("進行中", total - overdue)
-with col3: st.metric("已逾期", overdue, delta_color="inverse")
+overdue = len(edited_df[edited_df["剩餘天數"].str.contains("逾期", na=False)]) if "剩餘天數" in edited_df.columns else 0
 
+with col1:
+    st.metric("總 Project 數", total)
+with col2:
+    st.metric("進行中", total - overdue)
+with col3:
+    st.metric("已逾期", overdue, delta_color="inverse")
+
+# === 匯出 ===
 st.download_button(
-    "📥 匯出 CSV",
+    label="📥 匯出為 CSV",
     data=edited_df.to_csv(index=False).encode("utf-8"),
     file_name=f"YIP_SHING_Projects_{date.today().strftime('%Y%m%d')}.csv",
     mime="text/csv"
 )
 
-st.caption("資料永久儲存在 GitHub Gist • 如首次使用請先新增一筆資料")
+st.caption("新增 Project 會立即儲存並顯示在清單中 • 表格內編輯/刪除後請點「儲存所有變更」")
