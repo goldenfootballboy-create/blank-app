@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存 JSON（已徹底防呆）
+# 永久儲存 + 超級防呆讀寫
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
 
@@ -13,13 +13,20 @@ if not os.path.exists(PROJECTS_FILE):
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump([], f, ensure_ascii=False, indent=2)
 
+
 def load_projects():
     with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
+    if not data:
+        return pd.DataFrame()
+
     df = pd.DataFrame(data)
-    for c in ["Project_Type","Project_Name","Year","Lead_Time"]:
-        if c not in df.columns: df[c] = None
-    date_cols = ["Lead_Time","Parts_Arrival_Date","Installation_Complete_Date","Testing_Date","Delivery_Date"]
+    # 必要欄位補齊
+    for c in ["Project_Type", "Project_Name", "Year", "Lead_Time"]:
+        if c not in df.columns:
+            df[c] = None
+    # 日期安全轉換
+    date_cols = ["Lead_Time", "Parts_Arrival_Date", "Installation_Complete_Date", "Testing_Date", "Delivery_Date"]
     for c in date_cols:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
@@ -28,14 +35,16 @@ def load_projects():
         df["Real_Count"] = 1
     return df
 
+
 def save_projects(df):
     df2 = df.copy()
-    date_cols = ["Lead_Time","Parts_Arrival_Date","Installation_Complete_Date","Testing_Date","Delivery_Date"]
+    date_cols = ["Lead_Time", "Parts_Arrival_Date", "Installation_Complete_Date", "Testing_Date", "Delivery_Date"]
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(df2.to_dict(orient="records"), f, ensure_ascii=False, indent=2)
+
 
 df = load_projects()
 
@@ -48,15 +57,15 @@ with st.sidebar:
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"])
+            new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
             new_name = st.text_input("Project Name*")
-            new_year = st.selectbox("Year*", [2024,2025,2026], index=1)
-            new_qty  = st.number_input("Qty", min_value=1, value=1)
+            new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1)
+            new_qty = st.number_input("Qty", min_value=1, value=1)
         with c2:
             new_customer = st.text_input("Customer")
-            new_manager  = st.text_input("負責人")
-            new_leadtime = st.date_input("Lead Time*", value=date(2025,12,31))
-            new_brand    = st.text_input("Brand")
+            new_manager = st.text_input("負責人")
+            new_leadtime = st.date_input("Lead Time*", value=date.today())
+            new_brand = st.text_input("Brand")
 
         new_desc = st.text_area("Description", height=80)
 
@@ -81,42 +90,43 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 自動篩選：顯示「與剛剛新增的專案同年同月」的全部專案
+# 自動篩選：顯示「最新新增專案的同年同月」所有專案
 # ==============================================
 if len(df) == 0:
-    st.info("尚未有任何專案，請先新增專案")
+    st.info("尚未有任何專案，請先在左側新增專案")
     st.stop()
 
-# 取最新一筆專案的 Year 和 Lead_Time 月份
-latest_year = df.iloc[-1]["Year"]
-latest_month = df.iloc[-1]["Lead_Time"].month
+# 安全取得最新一筆的年月
+latest_row = df.iloc[-1]
+latest_year = int(latest_row["Year"])
+latest_month = pd.to_datetime(latest_row["Lead_Time"]).month
 
-# 篩選出同年同月的專案
+# 篩選
 filtered_df = df[
     (df["Year"] == latest_year) &
     (df["Lead_Time"].dt.month == latest_month)
-].copy()
+    ].copy()
 
-# ==============================================
-# 主畫面標題（自動顯示當前篩選條件）
-# ==============================================
-month_names = ["", "一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"]
+# 中文月份
+month_names = ["", "一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
 current_month_name = month_names[latest_month]
 
+# ==============================================
+# 主畫面標題
+# ==============================================
 st.markdown(f"# {latest_year}年 {current_month_name} 專案總覽")
-st.markdown(f"**（自動顯示與最新新增專案同年同月的全部專案）**")
+st.markdown("**（自動顯示與最新新增專案同年同月的全部專案）**")
 
 if len(filtered_df) == 0:
     st.info("這個月還沒有專案")
 else:
-    # 這裡貼上你原本從「統計」開始到「Memo Pad」結束的所有程式碼
-    # 把原本的 df 或 filtered_df 全部換成 filtered_df 即可
-    # 例如：
+    # 這裡貼上你原本從統計開始到 Memo 結束的所有程式碼
+    # 把所有 df 改成 filtered_df 即可
     total = int(filtered_df["Real_Count"].sum()) if "Real_Count" in filtered_df.columns else len(filtered_df)
-    st.write(f"**本月總數：{total}**")
+    st.write(f"**本月專案總數：{total}**")
 
-    # 之後把你原本整段漂亮的進度條、延誤、表格、Checklist、Memo 全部貼在這裡
-    # （你只要複製貼上就行）
+    # 把你原本整段漂亮的進度條、延誤、表格、Checklist、Memo 全部貼在這裡
+    # （你直接從你原本的程式碼複製貼上來就行）
 
 st.markdown("---")
-st.caption("每次新增專案後，中間自動顯示「同年同月」的全部專案，無需手動篩選")
+st.caption("每次新增專案後，系統自動切換顯示「同年同月」的全部專案")
