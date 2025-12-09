@@ -86,7 +86,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：大卡片 + expander 展開 + Delete 按鈕
+# 中間：大卡片 + expander 展開 + Delete 按鈕變大
 # ==============================================
 st.title("YIP SHING Project List")
 
@@ -101,7 +101,7 @@ else:
         with st.expander(
                 f"**{row['Project_Name']}** • {row['Project_Type']} • {row.get('Customer', '') or 'No Customer'}",
                 expanded=False):
-            col_content, col_del = st.columns([8, 1])
+            col_content, col_del = st.columns([8, 1.5])  # 讓 Delete 按鈕欄位更寬
 
             with col_content:
                 st.markdown(f"""
@@ -123,8 +123,8 @@ else:
                 """, unsafe_allow_html=True)
 
             with col_del:
-                st.write("")  # 佔位讓 Delete 按鈕在頂端
-                if st.button("Delete", key=f"del_{idx}", type="secondary"):
+                # 讓 Delete 按鈕變大、完整顯示字
+                if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects(df)
                     st.success(f"Deleted: {row['Project_Name']}")
@@ -132,4 +132,4 @@ else:
 
 st.markdown("---")
 st.caption(
-    "Projects are permanently saved • Click project name to expand details • Delete button appears on the right when expanded")
+    "Projects are permanently saved • Click project name to expand details • Delete button is now larger and fully visible")
