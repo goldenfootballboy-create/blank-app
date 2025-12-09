@@ -42,7 +42,7 @@ def save_projects(df):
 df = load_projects()
 
 # ==============================================
-# 左側：New Project 表單
+# 左側：New Project 表單（移除 Brand，Manager 改 Supervisor）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -56,9 +56,8 @@ with st.sidebar:
             new_qty = st.number_input("Qty", min_value=1, value=1)
         with col2:
             new_customer = st.text_input("Customer")
-            new_manager = st.text_input("Manager")
+            new_supervisor = st.text_input("Supervisor")  # 改為 Supervisor
             new_leadtime = st.date_input("Lead Time*", value=date.today())
-            new_brand = st.text_input("Brand")
 
         new_desc = st.text_area("Description", height=100)
 
@@ -74,10 +73,9 @@ with st.sidebar:
                     "Year": int(new_year),
                     "Lead_Time": new_leadtime.strftime("%Y-%m-%d"),
                     "Customer": new_customer or "",
-                    "Manager": new_manager or "",
+                    "Supervisor": new_supervisor or "",  # 改為 Supervisor
                     "Qty": new_qty,
                     "Real_Count": new_qty,
-                    "Brand": new_brand or "",
                     "Description": new_desc or "",
                 }
                 df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
@@ -86,7 +84,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：大卡片 + expander 展開 + Delete 按鈕變大
+# 中間：大卡片 + expander + Delete 按鈕（移除 Brand，Manager 改 Supervisor）
 # ==============================================
 st.title("YIP SHING Project List")
 
@@ -101,7 +99,7 @@ else:
         with st.expander(
                 f"**{row['Project_Name']}** • {row['Project_Type']} • {row.get('Customer', '') or 'No Customer'}",
                 expanded=False):
-            col_content, col_del = st.columns([8, 1.5])  # 讓 Delete 按鈕欄位更寬
+            col_content, col_del = st.columns([8, 1.5])
 
             with col_content:
                 st.markdown(f"""
@@ -112,18 +110,14 @@ else:
                     </p>
                     <p style="margin:5px 0; font-size:1.1rem;">
                         <strong>Customer:</strong> {row.get('Customer', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>Manager:</strong> {row.get('Manager', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong>Supervisor:</strong> {row.get('Supervisor', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
                         <strong>Qty:</strong> {row.get('Qty', 0)}
-                    </p>
-                    <p style="margin:5px 0; font-size:1.1rem;">
-                        <strong>Brand:</strong> {row.get('Brand', '—')}
                     </p>
                     {f"<p style='margin:10px 0; font-size:1.1rem; line-height:1.5;'><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
                 </div>
                 """, unsafe_allow_html=True)
 
             with col_del:
-                # 讓 Delete 按鈕變大、完整顯示字
                 if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects(df)
@@ -132,4 +126,4 @@ else:
 
 st.markdown("---")
 st.caption(
-    "Projects are permanently saved • Click project name to expand details • Delete button is now larger and fully visible")
+    "Projects are permanently saved • Click project name to expand details • Delete button is large and fully visible")
