@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存 + 防呆
+# 永久儲存
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
 if not os.path.exists(PROJECTS_FILE):
@@ -44,7 +44,7 @@ def save_projects(df):
 df = load_projects()
 
 # ==============================================
-# 進度計算 + 顏色
+# 進度計算 + 顏色 + 日期格式化
 # ==============================================
 def calculate_progress(row):
     p = 0
@@ -62,15 +62,18 @@ def get_color(pct):
     elif pct >= 30: return "#ffaa00"
     else: return "#ff4444"
 
+def fmt(d):
+    return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
+
 # ==============================================
 # 左側：New Project（保持不變）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
-    # （你原本的 New Project 表單直接貼在這裡，保持不變）
+    # （你原本的 New Project 表單直接貼在這裡即可）
 
 # ==============================================
-# 中間：進度條與卡片完全融合（超小超清楚）
+# 中間：進度條與卡片完全融合（超小超美）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -81,33 +84,31 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 整張卡就是進度條（高度極小）
+        # 超小巧進度卡（一行高度）
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; 
                     padding: 10px 15px; 
                     margin: 6px 0; 
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                    cursor: pointer;">
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-weight: bold; color: #1a1a1a;">
+                <div style="font-weight: bold; color:#1a1a1a;">
                     {row['Project_Name']} • {row['Project_Type']}
                 </div>
-                <div style="color: white; background: {color}; padding: 2px 10px; border-radius: 12px; font-size: 0.9rem; font-weight: bold;">
+                <div style="color:white; background:{color}; padding:2px 10px; border-radius:12px; font-size:0.9rem; font-weight:bold;">
                     {pct}%
                 </div>
             </div>
-            <div style="font-size: 0.9rem; color: #444; margin-top: 4px;">
-                {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty: {row.get('Qty',0)} | 
-                Lead Time: {pd.to_datetime(row['Lead_Time']).strftime('%Y-%m-%d') if pd.notna(row['Lead_Time']) else '—'}
+            <div style="font-size:0.85rem; color:#555; margin-top:4px;">
+                {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
+                Lead Time: {fmt(row['Lead_Time'])}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # 點擊卡片下方可展開詳細內容
-        with st.expander("", expanded=False):
-            st.markdown(f"**{row['Project_Name']}** 詳細資訊")
-            st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
+        # 點擊可展開詳細內容
+        with st.expander(f"Details • {row['Project_Name']}", expanded=False):
+            st.markdown(f"**Year:** {row['Year']}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
             if row.get("Description"):
                 st.markdown(f"**Description:** {row['Description']}")
@@ -127,4 +128,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Progress bar integrated into card • Super compact • Key info always visible • Click card to expand details")
+st.caption("Progress bar = card background • Super compact • All key info visible • Perfect for mobile & desktop")
