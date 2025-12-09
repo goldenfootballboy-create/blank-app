@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存 JSON（超級穩定）
+# 永久儲存 JSON
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
 
@@ -86,7 +86,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：大卡片顯示所有專案 + 刪除功能
+# 中間：大卡片 + expander 展開 + Delete 按鈕
 # ==============================================
 st.title("YIP SHING Project List")
 
@@ -97,35 +97,39 @@ else:
     st.markdown(f"**Total Projects: {int(total)}**")
     st.markdown("---")
 
-    # 逐筆顯示大卡片
     for idx, row in df.iterrows():
-        with st.container():
-            col_main, col_del = st.columns([10, 1])
+        with st.expander(
+                f"**{row['Project_Name']}** • {row['Project_Type']} • {row.get('Customer', '') or 'No Customer'}",
+                expanded=False):
+            col_content, col_del = st.columns([8, 1])
 
-            with col_main:
+            with col_content:
                 st.markdown(f"""
-                <div style="background:#f8f9fa; padding:20px; border-radius:12px; border-left:6px solid #1fb429; margin-bottom:15px;">
-                    <h3 style="margin:0; color:#1fb429;">{row['Project_Name']}</h3>
-                    <p style="margin:5px 0; color:#555;">
-                        <strong>Type:</strong> {row['Project_Type']} &nbsp;|&nbsp; 
-                        <strong>Year:</strong> {row['Year']} &nbsp;|&nbsp; 
+                <div style="background:#f9f9f9; padding:20px; border-radius:10px; border-left:6px solid #1fb429;">
+                    <p style="margin:5px 0; font-size:1.1rem;">
+                        <strong>Year:</strong> {row['Year']} &nbsp;&nbsp;|&nbsp;&nbsp;
                         <strong>Lead Time:</strong> {pd.to_datetime(row['Lead_Time']).strftime('%Y-%m-%d') if pd.notna(row['Lead_Time']) else 'Not set'}
                     </p>
-                    <p style="margin:5px 0;">
-                        <strong>Customer:</strong> {row.get('Customer', '—')} &nbsp;|&nbsp; 
-                        <strong>Manager:</strong> {row.get('Manager', '—')} &nbsp;|&nbsp; 
+                    <p style="margin:5px 0; font-size:1.1rem;">
+                        <strong>Customer:</strong> {row.get('Customer', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong>Manager:</strong> {row.get('Manager', '—')} &nbsp;&nbsp;|&nbsp;&nbsp;
                         <strong>Qty:</strong> {row.get('Qty', 0)}
                     </p>
-                    <p style="margin:5px 0;"><strong>Brand:</strong> {row.get('Brand', '—')}</p>
-                    {f"<p style='margin:10px 0; font-style:italic; color:#666;'><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
+                    <p style="margin:5px 0; font-size:1.1rem;">
+                        <strong>Brand:</strong> {row.get('Brand', '—')}
+                    </p>
+                    {f"<p style='margin:10px 0; font-size:1.1rem; line-height:1.5;'><strong>Description:</strong><br>{row.get('Description', '—')}</p>" if row.get('Description') else ""}
                 </div>
                 """, unsafe_allow_html=True)
 
             with col_del:
+                st.write("")  # 佔位讓 Delete 按鈕在頂端
                 if st.button("Delete", key=f"del_{idx}", type="secondary"):
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects(df)
                     st.success(f"Deleted: {row['Project_Name']}")
                     st.rerun()
 
-st.caption("All projects are permanently saved • Add and delete instantly reflected after adding/deleting")
+st.markdown("---")
+st.caption(
+    "Projects are permanently saved • Click project name to expand details • Delete button appears on the right when expanded")
