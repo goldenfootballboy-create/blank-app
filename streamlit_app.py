@@ -81,30 +81,58 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project + 分頁切換按鈕
+# 左側側邊欄：篩選 + 頁面切換 + New Project
 # ==============================================
 with st.sidebar:
+    st.header("View Controls")
+
+    # 頁面切換按鈕
+    if st.button("All Projects", use_container_width=True, type="primary"):
+        st.session_state.view_mode = "all"
+    if st.button("Delay Projects", use_container_width=True, type="secondary"):
+        st.session_state.view_mode = "delay"
+
+    if "view_mode" not in st.session_state:
+        st.session_state.view_mode = "all"
+
+    st.markdown("---")
+
+    # 三大篩選（只在 All Projects 時顯示）
+    if st.session_state.view_mode == "all":
+        st.markdown("### Filters")
+        project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
+        selected_type = st.selectbox("Project Type", project_types, index=0, key="filter_type")
+
+        years = ["2024", "2025", "2026"]
+        selected_year = st.selectbox("Year", years, index=1, key="filter_year")
+
+        month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        selected_month = st.selectbox("Month", month_names, index=0, key="filter_month")
+
+        st.markdown("---")
+
+    # New Project（永遠都在）
     st.header("New Project")
 
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"])
-            new_name = st.text_input("Project Name*")
-            new_year = st.selectbox("Year*", [2024,2025,2026], index=1)
-            new_qty  = st.number_input("Qty", min_value=1, value=1)
+            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"], key="new_type")
+            new_name = st.text_input("Project Name*", key="new_name")
+            new_year = st.selectbox("Year*", [2024,2025,2026], index=1, key="new_year")
+            new_qty  = st.number_input("Qty", min_value=1, value=1, key="new_qty")
         with c2:
-            new_customer = st.text_input("Customer")
-            new_supervisor = st.text_input("Supervisor")
-            new_leadtime = st.date_input("Lead Time*", value=date.today())
+            new_customer = st.text_input("Customer", key="new_customer")
+            new_supervisor = st.text_input("Supervisor", key="new_supervisor")
+            new_leadtime = st.date_input("Lead Time*", value=date.today(), key="new_leadtime")
 
         with st.expander("Project Specification & Progress Dates", expanded=False):
             st.markdown("**Specification**")
-            s1 = st.text_input("Genset model")
-            s2 = st.text_input("Alternator Model")
-            s3 = st.text_input("Controller")
-            s4 = st.text_input("Circuit breaker Size")
-            s5 = st.text_input("Charger")
+            s1 = st.text_input("Genset model", key="s1")
+            s2 = st.text_input("Alternator Model", key="s2")
+            s3 = st.text_input("Controller", key="s3")
+            s4 = st.text_input("Circuit breaker Size", key="s4")
+            s5 = st.text_input("Charger", key="s5")
 
             st.markdown("**Progress Dates**")
             d1 = st.date_input("Parts Arrival", value=None, key="d1")
@@ -113,9 +141,9 @@ with st.sidebar:
             d4 = st.date_input("Cleaning Complete", value=None, key="d4")
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
-            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨")
+            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨", key="reminder")
 
-            desc = st.text_area("Description", height=100)
+            desc = st.text_area("Description", height=100, key="desc")
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
             if not new_name.strip():
@@ -149,26 +177,12 @@ with st.sidebar:
                 st.success(f"Added: {new_name}")
                 st.rerun()
 
-    st.markdown("---")
-    st.markdown("### View Mode")
-
-    if st.button("All Projects", use_container_width=True, type="primary"):
-        st.session_state.view_mode = "all"
-    if st.button("Delay Projects", use_container_width=True, type="secondary"):
-        st.session_state.view_mode = "delay"
-
-    if "view_mode" not in st.session_state:
-        st.session_state.view_mode = "all"
-
 # ==============================================
-# 篩選邏輯（Delay Projects）
+# 篩選邏輯
 # ==============================================
 today = date.today()
-
-# 原始資料
 all_df = df.copy()
 
-# 篩選延誤專案：今天已過 Lead_Time 且進度 < 100%
 if st.session_state.view_mode == "delay":
     filtered_df = all_df[
         (all_df["Lead_Time"].dt.date < today) &
@@ -177,14 +191,19 @@ if st.session_state.view_mode == "delay":
     page_title = "Delay Projects"
 else:
     filtered_df = all_df.copy()
+    # 三大篩選
+    if selected_type != "All":
+        filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
+    filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+    if selected_month != "All":
+        month_map = {"Jan":1, "Feb":2, "Mar":3, "Apr":4, "May":5, "Jun":6,
+                     "Jul":7, "Aug":8, "Sep":9, "Oct":10, "Nov":11, "Dec":12}
+        filtered_df = filtered_df[filtered_df["Lead_Time"].dt.month == month_map[selected_month]]
     page_title = "YIP SHING Project Dashboard"
 
 # ==============================================
-# 中間：右上角 Counter + 進度卡片
+# 右上角小方塊 Project Counter
 # ==============================================
-st.title(page_title)
-
-# 右上角小方塊 Project Counter（顯示當前頁面統計）
 if len(filtered_df) > 0:
     counter = filtered_df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
     total_qty = int(filtered_df["Qty"].sum())
@@ -196,11 +215,16 @@ if len(filtered_df) > 0:
     </div>
     """, unsafe_allow_html=True)
 
+# ==============================================
+# 主畫面
+# ==============================================
+st.title(page_title)
+
 if len(filtered_df) == 0:
     if st.session_state.view_mode == "delay":
         st.success("No delay projects! All on time!")
     else:
-        st.info("No projects yet. Add one on the left.")
+        st.info("No projects match the selected filters.")
 else:
     for idx, row in filtered_df.iterrows():
         pct = calculate_progress(row)
@@ -421,4 +445,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("Delay Projects tab • All functions perfect • 永久儲存")
+st.caption("All filters + Delay Projects tab + Right-top counter + All functions perfect • 永久儲存")
