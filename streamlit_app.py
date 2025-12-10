@@ -247,7 +247,7 @@ else:
         # 進度卡片
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
-                    border-radius: 8px; padding: 8px 12px; margin: 6px 0; 
+                    border-radius: 8px; padding: 8px 12px; margin: 5px 0; 
                     box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
             {reminder_display}
             <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
