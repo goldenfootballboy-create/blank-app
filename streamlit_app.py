@@ -81,7 +81,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project（含 Progress Reminder）
+# 左側：New Project
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -113,7 +113,6 @@ with st.sidebar:
             d4 = st.date_input("Cleaning Complete", value=None, key="d4")
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
-            # Progress Reminder
             reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨")
 
             desc = st.text_area("Description", height=100)
@@ -151,7 +150,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + In Progress 顯示
+# 中間：卡片 + In Progress 顯示 + Delete 確認視窗
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -211,7 +210,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容（保持你原本的）
+        # 展開內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -355,11 +354,26 @@ else:
                             del st.session_state[f"editing_{idx}"]
                             st.rerun()
 
-            # Delete
+            # Delete + 確認視窗
             if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
-                df = df.drop(idx).reset_index(drop=True)
-                save_projects(df)
-                st.rerun()
+                st.session_state[f"confirm_delete_{idx}"] = True
+
+            if st.session_state.get(f"confirm_delete_{idx}", False):
+                st.markdown("---")
+                st.warning(f"確定要刪除專案 **{row['Project_Name']}** 嗎？")
+                col_yes, col_no = st.columns(2)
+                if col_yes.button("Yes, Delete", type="primary", key=f"yes_del_{idx}"):
+                    df = df.drop(idx).reset_index(drop=True)
+                    save_projects(df)
+                    if project_name in checklist_db:
+                        del checklist_db[project_name]
+                        save_checklist(checklist_db)
+                    del st.session_state[f"confirm_delete_{idx}"]
+                    st.success("已刪除！")
+                    st.rerun()
+                if col_no.button("No, Cancel", key=f"no_del_{idx}"):
+                    del st.session_state[f"confirm_delete_{idx}"]
+                    st.rerun()
 
 st.markdown("---")
-st.caption("All functions perfect • Edit inline in expander • Progress Reminder in card • 永久儲存")
+st.caption("Delete now has confirmation • Progress Reminder perfect • All functions work • 永久儲存")
