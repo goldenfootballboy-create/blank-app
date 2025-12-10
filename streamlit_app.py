@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 # ==============================================
-# 永久儲存（專案 + Checklist）
+# 永久儲存
 # ==============================================
 PROJECTS_FILE = "projects_data.json"
 CHECKLIST_FILE = "checklist_data.json"
@@ -38,6 +38,15 @@ def load_projects():
         df["Real_Count"] = df.get("Qty", 1)
     return df
 
+def save_projects(df):
+    df2 = df.copy()
+    date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+    for c in date_cols:
+        if c in df2.columns:
+            df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
+    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
+
 def load_checklist():
     with open(CHECKLIST_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -50,7 +59,7 @@ df = load_projects()
 checklist_db = load_checklist()
 
 # ==============================================
-# 進度計算 + 顏色
+# 進度計算 + 顏色 + 日期格式化
 # ==============================================
 def calculate_progress(row):
     p = 0
@@ -68,19 +77,22 @@ def get_color(pct):
     elif pct >= 30: return "#ffaa00"
     else: return "#ff4444"
 
+def fmt(d):
+    return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
+
 # ==============================================
-# 左側：New Project（保持不變）
+# 左側：New Project（保持你原本的）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
-    # （你原本的 New Project 表單直接貼上來即可）
+    # 你原本的完整 New Project 表單貼在這裡（不變）
 
 # ==============================================
-# 中間：專案列表 + Checklist Panel
+# 中間：小巧卡片 + Checklist Panel
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
-# 小巧 Project Counter
+# 小巧 Counter
 if len(df) > 0:
     counter = df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
     total_qty = int(df["Qty"].sum())
@@ -99,6 +111,7 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
+        # 小巧進度卡片
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
@@ -118,8 +131,8 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
+        # Details + Checklist Panel
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
-            # 基本資訊
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
 
@@ -131,53 +144,48 @@ else:
                         key, val = line.split(": ",1) if ": " in line else ("", line)
                         st.markdown(f"• **{key}:** {val}")
 
-            # Checklist Panel 按鈕
+            # Checklist Panel
             if st.button("Checklist Panel", key=f"check_{idx}", use_container_width=True):
-                st.session_state[f"checklist_{idx}"] = True
+                st.session_state[f"show_checklist_{idx}"] = True
 
-            # 顯示 Checklist
-            if st.session_state.get(f"checklist_{idx}", False):
+            if st.session_state.get(f"show_checklist_{idx}", False):
                 project_name = row["Project_Name"]
                 items = checklist_db.get(project_name, [])
 
                 st.markdown("#### Checklist")
                 new_items = []
                 for i, item in enumerate(items):
-                    col_text, col_check = st.columns([6,1])
-                    with col_text:
-                        text = st.text_input(f"Item {i+1}", value=item.get("text",""), key=f"text_{idx}_{i}", label_visibility="collapsed")
-                    with col_check:
-                        checked = st.checkbox("", value=item.get("done",False), key=f"check_{idx}_{i}")
+                    col1, col2 = st.columns([6,1])
+                    with col1:
+                        text = st.text_input("", value=item.get("text",""), key=f"text_{idx}_{i}", label_visibility="collapsed")
+                    with col2:
+                        done = st.checkbox("", value=item.get("done",False), key=f"done_{idx}_{i}")
                     if text.strip():
-                        new_items.append({"text": text.strip(), "done": checked})
+                        new_items.append({"text": text.strip(), "done": done})
 
-                # 新增空白輸入框
-                col_new, col_save = st.columns([6,1])
-                with col_new:
-                    new_text = st.text_input("Add new item", key=f"new_{idx}")
-                with col_save:
-                    st.write("")  # 佔位
-                    if st.button("Save Checklist", key=f"save_check_{idx}", type="primary"):
-                        if new_text.strip():
-                            new_items.append({"text": new_text.strip(), "done": False})
-                        checklist_db[project_name] = new_items
-                        save_checklist(checklist_db)
-                        st.success("Checklist saved!")
-                        st.rerun()
+                # 新增項目
+                new_text = st.text_input("Add new item", key=f"newitem_{idx}")
+                if st.button("Add Item", key=f"additem_{idx}"):
+                    if new_text.strip():
+                        new_items.append({"text": new_text.strip(), "done": False})
 
-                # 顯示未完成項目（有紅色提醒）
-                st.markdown("**To-Do List:**")
-                has_pending = False
-                for item in new_items:
-                    if item["text"] and not item["done"]:
-                        has_pending = True
-                        st.markdown(f"• <span style='color:red;'>**{item['text']} ❗**</span>", unsafe_allow_html=True)
-                    elif item["text"]:
-                        st.markdown(f"• ~~{item['text']}~~ ✅")
+                # 儲存
+                if st.button("Save Checklist", key=f"savecheck_{idx}", type="primary"):
+                    checklist_db[project_name] = new_items
+                    save_checklist(checklist_db)
+                    st.success("Checklist saved!")
+                    st.rerun()
 
-                if not has_pending and new_items:
-                    st.success("All tasks completed! ✅")
+                # 顯示未完成項目（紅色提醒）
+                pending = [it["text"] for it in new_items if it["text"] and not it["done"]]
+                if pending:
+                    st.markdown("**Pending items ❗**")
+                    for p in pending:
+                        st.markdown(f"• <span style='color:red; font-weight:bold;'>{p} 未完成</span>", unsafe_allow_html=True)
+                else:
+                    st.success("All items completed!")
 
+            # Edit & Delete
             col1, col2 = st.columns(2)
             if col1.button("Edit", key=f"edit_{idx}", use_container_width=True):
                 st.session_state.editing_index = idx
@@ -187,4 +195,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("YIP SHING • Checklist Panel added • Red ❗ for unfinished items • All data permanently saved")
+st.caption("Checklist Panel added • Unfinished items shown in red • All data permanently saved")
