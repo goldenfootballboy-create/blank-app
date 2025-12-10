@@ -18,18 +18,20 @@ if not os.path.exists(CHECKLIST_FILE):
     with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump({}, f, ensure_ascii=False, indent=2)
 
+
 def load_projects():
     with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not data:
         return pd.DataFrame()
     df = pd.DataFrame(data)
-    required = ["Project_Type","Project_Name","Year","Lead_Time","Customer","Supervisor",
-                "Qty","Real_Count","Project_Spec","Description","Progress_Reminder",
-                "Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+    required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
+                "Qty", "Real_Count", "Project_Spec", "Description", "Progress_Reminder",
+                "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
     for c in required:
         if c not in df.columns: df[c] = ""
-    date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+    date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
+                 "Delivery_Complete"]
     for c in date_cols:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
@@ -38,25 +40,31 @@ def load_projects():
         df["Real_Count"] = df.get("Qty", 1)
     return df
 
+
 def save_projects(df):
     df2 = df.copy()
-    date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+    date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
+                 "Delivery_Complete"]
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
 
+
 def load_checklist():
     with open(CHECKLIST_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def save_checklist(data):
     with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+
 df = load_projects()
 checklist_db = load_checklist()
+
 
 # ==============================================
 # 進度計算 + 顏色
@@ -70,29 +78,49 @@ def calculate_progress(row):
     if pd.notna(row.get("Delivery_Complete")): p += 10
     return min(p, 100)
 
+
 def get_color(pct):
-    if pct >= 100: return "#0066ff"
-    elif pct >= 90: return "#00aa00"
-    elif pct >= 70: return "#66cc66"
-    elif pct >= 30: return "#ffaa00"
-    else: return "#ff4444"
+    if pct >= 100:
+        return "#0066ff"
+    elif pct >= 90:
+        return "#00aa00"
+    elif pct >= 70:
+        return "#66cc66"
+    elif pct >= 30:
+        return "#ffaa00"
+    else:
+        return "#ff4444"
+
 
 def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
+
 # ==============================================
-# 左側：New Project（永遠都在）
+# 左側：篩選 + New Project
 # ==============================================
 with st.sidebar:
+    st.header("Dashboard Controls")
+
+    project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
+    selected_type = st.selectbox("Project Type", project_types, index=0)
+
+    years = ["2024", "2025", "2026"]
+    selected_year = st.selectbox("Year", years, index=1)
+
+    month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    selected_month = st.selectbox("Month", month_names, index=0)
+
+    st.markdown("---")
     st.header("New Project")
 
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"])
+            new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
             new_name = st.text_input("Project Name*")
-            new_year = st.selectbox("Year*", [2024,2025,2026], index=1)
-            new_qty  = st.number_input("Qty", min_value=1, value=1)
+            new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1)
+            new_qty = st.number_input("Qty", min_value=1, value=1)
         with c2:
             new_customer = st.text_input("Customer")
             new_supervisor = st.text_input("Supervisor")
@@ -113,7 +141,8 @@ with st.sidebar:
             d4 = st.date_input("Cleaning Complete", value=None, key="d4")
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
-            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨")
+            reminder = st.text_input("Progress Reminder (顯示在進度條中間)",
+                                     placeholder="例如：等緊報價 / 生產中 / 已發貨")
 
             desc = st.text_area("Description", height=100)
 
@@ -150,15 +179,26 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：右上角小方塊 Project Counter + 進度卡片
+# 篩選邏輯
 # ==============================================
-st.title("YIP SHING Project Dashboard")
+filtered_df = df.copy()
 
-# 右上角小方塊 Project Counter（超小巧）
-if len(df) > 0:
-    counter = df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
-    total_qty = int(df["Qty"].sum())
+if selected_type != "All":
+    filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
 
+filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+
+if selected_month != "All":
+    month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                 "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+    filtered_df = filtered_df[filtered_df["Lead_Time"].dt.month == month_map[selected_month]]
+
+# ==============================================
+# 右上角小方塊 Project Counter（顯示篩選後結果）
+# ==============================================
+if len(filtered_df) > 0:
+    counter = filtered_df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
+    total_qty = int(filtered_df["Qty"].sum())
     st.markdown(f"""
     <div style="position:fixed; top:70px; right:20px; background:#1e3a8a; color:white; padding:12px 18px; 
                 border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.3); z-index:1000; font-size:0.9rem; text-align:center;">
@@ -167,10 +207,15 @@ if len(df) > 0:
     </div>
     """, unsafe_allow_html=True)
 
-if len(df) == 0:
-    st.info("No projects yet. Add one on the left.")
+# ==============================================
+# 中間：顯示篩選後的卡片
+# ==============================================
+st.title("YIP SHING Project Dashboard")
+
+if len(filtered_df) == 0:
+    st.info("No projects match the selected filters.")
 else:
-    for idx, row in df.iterrows():
+    for idx, row in filtered_df.iterrows():
         pct = calculate_progress(row)
         color = get_color(pct)
 
@@ -217,7 +262,7 @@ else:
                 </div>
             </div>
             <div style="font-size:0.85rem; color:#555; margin-top:6px; position:relative; z-index:5;">
-                {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
+                {row.get('Customer', '—')} | {row.get('Supervisor', '—')} | Qty:{row.get('Qty', 0)} | 
                 Lead Time: {fmt(row['Lead_Time'])}
             </div>
         </div>
@@ -226,13 +271,14 @@ else:
         # 展開內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
-            st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
+            st.markdown(
+                f"**Customer:** {row.get('Customer', '—')} | **Supervisor:** {row.get('Supervisor', '—')} | **Qty:** {row.get('Qty', 0)}")
 
             if row.get("Project_Spec"):
                 st.markdown("**Project Specification:**")
                 for line in row["Project_Spec"].split("\n"):
                     if line.strip():
-                        key, val = line.split(": ",1) if ": " in line else ("", line)
+                        key, val = line.split(": ", 1) if ": " in line else ("", line)
                         st.markdown(f"• **{key}:** {val}")
 
             # Checklist Panel
@@ -240,9 +286,10 @@ else:
                 st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
 
             if st.session_state.get(f"cl_open_{idx}", False):
-                current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
+                current = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
 
-                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>",
+                            unsafe_allow_html=True)
 
                 new_purchase = []
                 new_done_p = set()
@@ -256,7 +303,7 @@ else:
                     with c1:
                         text = current["purchase"][i] if i < len(current["purchase"]) else ""
                         checked = text in current["done_p"]
-                        col_chk, col_txt = st.columns([1,7])
+                        col_chk, col_txt = st.columns([1, 7])
                         with col_chk:
                             chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
                         with col_txt:
@@ -268,7 +315,7 @@ else:
                     with c2:
                         text = current["drawing"][i] if i < len(current["drawing"]) else ""
                         checked = text in current["done_d"]
-                        col_chk, col_txt = st.columns([1,7])
+                        col_chk, col_txt = st.columns([1, 7])
                         with col_chk:
                             chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
                         with col_txt:
@@ -299,35 +346,51 @@ else:
                 with st.form(key=f"edit_form_{idx}"):
                     c1, c2 = st.columns(2)
                     with c1:
-                        e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
-                                             index=["Enclosure","Open Set","Scania","Marine","K50G3"].index(row["Project_Type"]))
+                        e_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"],
+                                              index=["Enclosure", "Open Set", "Scania", "Marine", "K50G3"].index(
+                                                  row["Project_Type"]))
                         e_name = st.text_input("Project Name*", value=row["Project_Name"])
-                        e_year = st.selectbox("Year*", [2024,2025,2026], index=[2024,2025,2026].index(row["Year"]))
-                        e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
+                        e_year = st.selectbox("Year*", [2024, 2025, 2026], index=[2024, 2025, 2026].index(row["Year"]))
+                        e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty", 1)))
                     with c2:
-                        e_customer = st.text_input("Customer", value=row.get("Customer",""))
-                        e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor",""))
-                        e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(row["Lead_Time"]) else date.today())
+                        e_customer = st.text_input("Customer", value=row.get("Customer", ""))
+                        e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor", ""))
+                        e_leadtime = st.date_input("Lead Time*",
+                                                   value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(
+                                                       row["Lead_Time"]) else date.today())
 
                     with st.expander("Project Specification & Progress Dates", expanded=True):
-                        curr_spec = row.get("Project_Spec","")
-                        lines = [line.split(": ",1)[1] if ": " in line else "" for line in curr_spec.split("\n")] if curr_spec else ["","","","",""]
-                        e_s1 = st.text_input("Genset model", value=lines[0] if len(lines)>0 else "")
-                        e_s2 = st.text_input("Alternator Model", value=lines[1] if len(lines)>1 else "")
-                        e_s3 = st.text_input("Controller", value=lines[2] if len(lines)>2 else "")
-                        e_s4 = st.text_input("Circuit breaker Size", value=lines[3] if len(lines)>3 else "")
-                        e_s5 = st.text_input("Charger", value=lines[4] if len(lines)>4 else "")
+                        curr_spec = row.get("Project_Spec", "")
+                        lines = [line.split(": ", 1)[1] if ": " in line else "" for line in
+                                 curr_spec.split("\n")] if curr_spec else ["", "", "", "", ""]
+                        e_s1 = st.text_input("Genset model", value=lines[0] if len(lines) > 0 else "")
+                        e_s2 = st.text_input("Alternator Model", value=lines[1] if len(lines) > 1 else "")
+                        e_s3 = st.text_input("Controller", value=lines[2] if len(lines) > 2 else "")
+                        e_s4 = st.text_input("Circuit breaker Size", value=lines[3] if len(lines) > 3 else "")
+                        e_s5 = st.text_input("Charger", value=lines[4] if len(lines) > 4 else "")
 
                         st.markdown("**Progress Dates**")
-                        e_d1 = st.date_input("Parts Arrival", value=pd.to_datetime(row["Parts_Arrival"]).date() if pd.notna(row["Parts_Arrival"]) else None, key=f"d1e{idx}")
-                        e_d2 = st.date_input("Installation Complete", value=pd.to_datetime(row["Installation_Complete"]).date() if pd.notna(row["Installation_Complete"]) else None, key=f"d2e{idx}")
-                        e_d3 = st.date_input("Testing Complete", value=pd.to_datetime(row["Testing_Complete"]).date() if pd.notna(row["Testing_Complete"]) else None, key=f"d3e{idx}")
-                        e_d4 = st.date_input("Cleaning Complete", value=pd.to_datetime(row["Cleaning_Complete"]).date() if pd.notna(row["Cleaning_Complete"]) else None, key=f"d4e{idx}")
-                        e_d5 = st.date_input("Delivery Complete", value=pd.to_datetime(row["Delivery_Complete"]).date() if pd.notna(row["Delivery_Complete"]) else None, key=f"d5e{idx}")
+                        e_d1 = st.date_input("Parts Arrival",
+                                             value=pd.to_datetime(row["Parts_Arrival"]).date() if pd.notna(
+                                                 row["Parts_Arrival"]) else None, key=f"d1e{idx}")
+                        e_d2 = st.date_input("Installation Complete",
+                                             value=pd.to_datetime(row["Installation_Complete"]).date() if pd.notna(
+                                                 row["Installation_Complete"]) else None, key=f"d2e{idx}")
+                        e_d3 = st.date_input("Testing Complete",
+                                             value=pd.to_datetime(row["Testing_Complete"]).date() if pd.notna(
+                                                 row["Testing_Complete"]) else None, key=f"d3e{idx}")
+                        e_d4 = st.date_input("Cleaning Complete",
+                                             value=pd.to_datetime(row["Cleaning_Complete"]).date() if pd.notna(
+                                                 row["Cleaning_Complete"]) else None, key=f"d4e{idx}")
+                        e_d5 = st.date_input("Delivery Complete",
+                                             value=pd.to_datetime(row["Delivery_Complete"]).date() if pd.notna(
+                                                 row["Delivery_Complete"]) else None, key=f"d5e{idx}")
 
-                        e_reminder = st.text_input("Progress Reminder (顯示在進度條中間)", value=row.get("Progress_Reminder",""), placeholder="例如：等緊報價 / 生產中 / 已發貨")
+                        e_reminder = st.text_input("Progress Reminder (顯示在進度條中間)",
+                                                   value=row.get("Progress_Reminder", ""),
+                                                   placeholder="例如：等緊報價 / 生產中 / 已發貨")
 
-                        e_desc = st.text_area("Description", value=row.get("Description",""), height=100)
+                        e_desc = st.text_area("Description", value=row.get("Description", ""), height=100)
 
                     col_save, col_cancel = st.columns(2)
                     with col_save:
@@ -389,4 +452,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("Project Counter in top-right corner • All functions perfect • 永久儲存")
+st.caption("Project Type / Year / Month filter added • Right-top counter • All functions perfect • 永久儲存")
