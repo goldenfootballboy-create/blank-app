@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + Missing Submission 完全不殘留
+# 中間：卡片 + 完美狀態標籤
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,16 +158,23 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 正確判斷 Missing Submission
+        # 正確判斷 Checklist 狀態
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
         done_items = set(current_check["done_p"]) | set(current_check["done_d"])
-        has_missing = any(item.strip() and item not in done_items for item in all_items)
+        real_items = [item for item in all_items if item.strip()]
+        has_missing = any(item.strip() and item not in done_items for item in real_items)
+        all_done = len(real_items) > 0 and not has_missing
 
-        # 完整生成卡片（一次輸出，絕不殘留 HTML）
-        missing_tag = f'<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>' if has_missing else ""
+        # 狀態標籤
+        status_tag = ""
+        if all_done:
+            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">✔️</span>'
+        elif has_missing:
+            status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
 
+        # 進度卡片
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
@@ -177,7 +184,7 @@ else:
                     {row['Project_Name']} • {row['Project_Type']}
                 </div>
                 <div>
-                    {missing_tag}
+                    {status_tag}
                     <span style="color:white; background:{color}; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:1rem; margin-left:10px;">
                         {pct}%
                     </span>
@@ -190,7 +197,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容
+        # 展開內容（保持你原本的）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -266,4 +273,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Missing Submission only appears when there are actual unchecked items • No HTML residue • Perfect display")
+st.caption("✔️ All Done when checklist has items and all checked • Missing Submission when unchecked • Perfect behavior")
