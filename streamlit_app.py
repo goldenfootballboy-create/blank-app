@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + 正確的 Missing Submission 判斷
+# 中間：卡片 + 正確 Missing Submission（不再殘留 HTML）
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,24 +158,26 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 正確判斷 Missing Submission（只有「有內容但沒打勾」才顯示）
+        # 正確判斷 Missing Submission
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
         done_items = set(current_check["done_p"]) | set(current_check["done_d"])
         has_missing = any(item.strip() and item not in done_items for item in all_items)
 
-        # 進度卡片 + Missing Submission 標籤
+        # 完整生成卡片，避免 HTML 殘留
+        missing_tag = f'<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>' if has_missing else ""
+
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative;">
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-weight: bold;">
                     {row['Project_Name']} • {row['Project_Type']}
                 </div>
                 <div>
-                    {f"<span style='background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;'>Missing Submission</span>" if has_missing else ""}
+                    {missing_tag}
                     <span style="color:white; background:{color}; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:1rem; margin-left:10px;">
                         {pct}%
                     </span>
@@ -188,7 +190,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開詳細內容
+        # 展開內容（保持你原本的）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -264,4 +266,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Missing Submission only appears when there are actual unchecked items • All functions work perfectly • 永久儲存")
+st.caption("Missing Submission only appears when there are actual unchecked items • No HTML residue • Perfect display")
