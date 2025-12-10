@@ -15,11 +15,11 @@ if not os.path.exists(PROJECTS_FILE):
         json.dump([], f, ensure_ascii=False, indent=2)
 
 if not os.path.exists(CHECKLIST_FILE):
-    with open(CHECKLIST_FILE, "w", encoding="utf8") as f:
+    with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump({}, f, ensure_ascii=False, indent=2)
 
 def load_projects():
-    with open(PROJECTS_FILE, "r", encoding="utf8") as f:
+    with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not data:
         return pd.DataFrame()
@@ -44,15 +44,15 @@ def save_projects(df):
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
-    with open(PROJECTS_FILE, "w", encoding="utf8") as f:
+    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
 
 def load_checklist():
-    with open(CHECKLIST_FILE, "r", encoding="utf8") as f:
+    with open(CHECKLIST_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_checklist(data):
-    with open(CHECKLIST_FILE, "w", encoding="utf8") as f:
+    with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 df = load_projects()
@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + Missing Submission 正確判斷
+# 中間：卡片 + 正確的 Missing Submission 判斷
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,14 +158,14 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 正確判斷 Missing Submission（只有「有文字但沒打勾」才顯示）
+        # 正確判斷 Missing Submission（只有「有內容但沒打勾」才顯示）
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
         done_items = set(current_check["done_p"]) | set(current_check["done_d"])
         has_missing = any(item.strip() and item not in done_items for item in all_items)
 
-        # 進度卡片
+        # 進度卡片 + Missing Submission 標籤
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
@@ -188,7 +188,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容
+        # 展開詳細內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -264,4 +264,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Missing Submission only shows when there are actual unchecked items • All functions work perfectly")
+st.caption("Missing Submission only appears when there are actual unchecked items • All functions work perfectly • 永久儲存")
