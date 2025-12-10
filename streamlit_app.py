@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + 正確 Missing Submission（不再殘留 HTML）
+# 中間：卡片 + Missing Submission 完全不殘留
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -165,7 +165,7 @@ else:
         done_items = set(current_check["done_p"]) | set(current_check["done_d"])
         has_missing = any(item.strip() and item not in done_items for item in all_items)
 
-        # 完整生成卡片，避免 HTML 殘留
+        # 完整生成卡片（一次輸出，絕不殘留 HTML）
         missing_tag = f'<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>' if has_missing else ""
 
         st.markdown(f"""
@@ -190,7 +190,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容（保持你原本的）
+        # 展開內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
