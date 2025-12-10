@@ -10,8 +10,8 @@ from datetime import date
 PROJECTS_FILE = "projects_data.json"
 CHECKLIST_FILE = "checklist_data.json"
 
-if not os.path.exists(S_FILE):
-    with open(S_FILE, "w", encoding="utf-8") as f:
+if not os.path.exists(PROJECTS_FILE):
+    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump([], f, ensure_ascii=False, indent=2)
 
 if not os.path.exists(CHECKLIST_FILE):
@@ -19,7 +19,7 @@ if not os.path.exists(CHECKLIST_FILE):
         json.dump({}, f, ensure_ascii=False, indent=2)
 
 def load_projects():
-    with open(S_FILE, "r", encoding="utf-8") as f:
+    with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not data:
         return pd.DataFrame()
@@ -44,7 +44,7 @@ def save_projects(df):
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
-    with open(S_FILE, "w", encoding="utf-8") as f:
+    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
 
 def load_checklist():
@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + 完美狀態標籤 + 完整 Edit 表單
+# 中間：卡片 + 完美狀態標籤 + 完整 Edit
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,7 +158,7 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 判斷 Checklist 狀態
+        # 正確判斷 Checklist 狀態
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
@@ -173,7 +173,7 @@ else:
         if is_empty:
             status_tag = '<span style="background:#888888; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Please add checklist</span>'
         elif all_done:
-            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Check</span>'
+            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">✔️</span>'
         elif has_missing:
             status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
 
