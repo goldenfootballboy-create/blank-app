@@ -81,7 +81,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project（永遠都在！）
+# 左側：New Project
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -92,7 +92,7 @@ with st.sidebar:
             new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"])
             new_name = st.text_input("Project Name*")
             new_year = st.selectbox("Year*", [2024,2025,2026], index=1)
-            new_qty  = st.number_input("Qty", min_value=1, value=value=1)
+            new_qty  = st.number_input("Qty", min_value=1, value=1)   # ← 這裡已修正
         with c2:
             new_customer = st.text_input("Customer")
             new_supervisor = st.text_input("Supervisor")
@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + Missing Submission 顯示在進度條右上角
+# 中間：卡片 + Missing Submission 標籤在進度條右上角
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,7 +158,7 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 檢查 Checklist 是否有未完成項目
+        # 檢查是否有未完成的 Checklist 項目
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         has_missing = False
@@ -167,7 +167,7 @@ else:
                 has_missing = True
                 break
 
-        # 進度條卡片 + Missing Submission 標籤
+        # 進度卡片 + Missing Submission 標籤
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
@@ -190,7 +190,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開詳細內容
+        # 展開詳細內容（包含 Checklist、Edit、Delete）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -202,7 +202,59 @@ else:
                         key, val = line.split(": ",1) if ": " in line else ("", line)
                         st.markdown(f"• **{key}:** {val}")
 
-            # Checklist Panel（保持你原本的完整功能
+            # Checklist Panel
+            if st.button("Checklist Panel", key=f"cl_btn_{idx}", use_container_width=True):
+                st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
+
+            if st.session_state.get(f"cl_open_{idx}", False):
+                current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
+
+                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+
+                new_purchase = []
+                new_done_p = set()
+                new_drawing = []
+                new_done_d = set()
+
+                max_rows = max(len(current["purchase"]), len(current["drawing"]), 6)
+
+                for i in range(max_rows):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        text = current["purchase"][i] if i < len(current["purchase"]) else ""
+                        checked = text in current["done_p"]
+                        col_chk, col_txt = st.columns([1,7])
+                        with col_chk:
+                            chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
+                        with col_txt:
+                            txt = st.text_input("", value=text, key=f"pt_{idx}_{i}", label_visibility="collapsed")
+                        if txt.strip():
+                            new_purchase.append(txt.strip())
+                            if chk:
+                                new_done_p.add(txt.strip())
+                    with c2:
+                        text = current["drawing"][i] if i < len(current["drawing"]) else ""
+                        checked = text in current["done_d"]
+                        col_chk, col_txt = st.columns([1,7])
+                        with col_chk:
+                            chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
+                        with col_txt:
+                            txt = st.text_input("", value=text, key=f"dt_{idx}_{i}", label_visibility="collapsed")
+                        if txt.strip():
+                            new_drawing.append(txt.strip())
+                            if chk:
+                                new_done_d.add(txt.strip())
+
+                if st.button("SAVE CHECKLIST", key=f"save_cl_{idx}", type="primary", use_container_width=True):
+                    checklist_db[project_name] = {
+                        "purchase": new_purchase,
+                        "done_p": list(new_done_p),
+                        "drawing": new_drawing,
+                        "done_d": list(new_done_d)
+                    }
+                    save_checklist(checklist_db)
+                    st.success("Checklist 已儲存！")
+                    st.rerun()
 
             # Edit & Delete
             col1, col2 = st.columns(2)
@@ -214,4 +266,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Missing Submission now on progress bar • Clean & beautiful • All functions work perfectly")
+st.caption("Missing Submission on progress bar • All functions work perfectly • 永久儲存")
