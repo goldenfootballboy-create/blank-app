@@ -63,11 +63,18 @@ checklist_db = load_checklist()
 # ==============================================
 def calculate_progress(row):
     p = 0
-    if pd.notna(row.get("Parts_Arrival")): p += 30
-    if pd.notna(row.get("Installation_Complete")): p += 40
-    if pd.notna(row.get("Testing_Complete")): p += 10
-    if pd.notna(row.get("Cleaning_Complete")): p += 10
-    if pd.notna(row.get("Delivery_Complete")): p += 10
+    today = date.today()
+    # 只有日期不為空且已過今天才計分
+    if pd.notna(row.get("Parts_Arrival")) and row["Parts_Arrival"].date() < today:
+        p += 30
+    if pd.notna(row.get("Installation_Complete")) and row["Installation_Complete"].date() < today:
+        p += 40
+    if pd.notna(row.get("Testing_Complete")) and row["Testing_Complete"].date() < today:
+        p += 10
+    if pd.notna(row.get("Cleaning_Complete")) and row["Cleaning_Complete"].date() < today:
+        p += 10
+    if pd.notna(row.get("Delivery_Complete")) and row["Delivery_Complete"].date() < today:
+        p += 10
     return min(p, 100)
 
 def get_color(pct):
@@ -219,7 +226,6 @@ if len(filtered_df) > 0:
     </div>
     """, unsafe_allow_html=True)
 
-# 主畫面
 if len(filtered_df) == 0:
     if st.session_state.view_mode == "delay":
         st.success("No delay projects! All on time!")
@@ -279,7 +285,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容（保持你原本的）
+        # 展開內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -450,4 +456,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("Description moved to Specification section • All functions perfect • 永久儲存")
+st.caption("Progress only counts when date has passed today • All functions perfect • 永久儲存")
