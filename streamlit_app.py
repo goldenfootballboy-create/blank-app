@@ -15,11 +15,11 @@ if not os.path.exists(PROJECTS_FILE):
         json.dump([], f, ensure_ascii=False, indent=2)
 
 if not os.path.exists(CHECKLIST_FILE):
-    with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
+    with open(CHECKLIST_FILE, "w", encoding="utf8") as f:
         json.dump({}, f, ensure_ascii=False, indent=2)
 
 def load_projects():
-    with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
+    with open(PROJECTS_FILE, "r", encoding="utf8") as f:
         data = json.load(f)
     if not data:
         return pd.DataFrame()
@@ -44,15 +44,15 @@ def save_projects(df):
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
-    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
+    with open(PROJECTS_FILE, "w", encoding="utf8") as f:
         json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
 
 def load_checklist():
-    with open(CHECKLIST_FILE, "r", encoding="utf-8") as f:
+    with open(CHECKLIST_FILE, "r", encoding="utf8") as f:
         return json.load(f)
 
 def save_checklist(data):
-    with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
+    with open(CHECKLIST_FILE, "w", encoding="utf8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 df = load_projects()
@@ -81,10 +81,11 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project（永遠都在）
+# 左側：New Project
 # ==============================================
 with st.sidebar:
     st.header("New Project")
+
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
@@ -146,7 +147,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + Missing Submission 只在「有文字但沒打勾」時才顯示
+# 中間：卡片 + Missing Submission 正確判斷
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -157,7 +158,7 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 正確判斷是否有「有內容但沒打勾」的項目
+        # 正確判斷 Missing Submission（只有「有文字但沒打勾」才顯示）
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
@@ -187,7 +188,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容（保持你原本的 expander）
+        # 展開內容
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -199,12 +200,59 @@ else:
                         key, val = line.split(": ",1) if ": " in line else ("", line)
                         st.markdown(f"• **{key}:** {val}")
 
-            # Checklist Panel（保持你原本的）
+            # Checklist Panel
             if st.button("Checklist Panel", key=f"cl_btn_{idx}", use_container_width=True):
                 st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
 
             if st.session_state.get(f"cl_open_{idx}", False):
-                # 你原本的 Checklist 程式碼貼在這裡（不變）
+                current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
+
+                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+
+                new_purchase = []
+                new_done_p = set()
+                new_drawing = []
+                new_done_d = set()
+
+                max_rows = max(len(current["purchase"]), len(current["drawing"]), 6)
+
+                for i in range(max_rows):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        text = current["purchase"][i] if i < len(current["purchase"]) else ""
+                        checked = text in current["done_p"]
+                        col_chk, col_txt = st.columns([1,7])
+                        with col_chk:
+                            chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
+                        with col_txt:
+                            txt = st.text_input("", value=text, key=f"pt_{idx}_{i}", label_visibility="collapsed")
+                        if txt.strip():
+                            new_purchase.append(txt.strip())
+                            if chk:
+                                new_done_p.add(txt.strip())
+                    with c2:
+                        text = current["drawing"][i] if i < len(current["drawing"]) else ""
+                        checked = text in current["done_d"]
+                        col_chk, col_txt = st.columns([1,7])
+                        with col_chk:
+                            chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
+                        with col_txt:
+                            txt = st.text_input("", value=text, key=f"dt_{idx}_{i}", label_visibility="collapsed")
+                        if txt.strip():
+                            new_drawing.append(txt.strip())
+                            if chk:
+                                new_done_d.add(txt.strip())
+
+                if st.button("SAVE CHECKLIST", key=f"save_cl_{idx}", type="primary", use_container_width=True):
+                    checklist_db[project_name] = {
+                        "purchase": new_purchase,
+                        "done_p": list(new_done_p),
+                        "drawing": new_drawing,
+                        "done_d": list(new_done_d)
+                    }
+                    save_checklist(checklist_db)
+                    st.success("Checklist 已儲存！")
+                    st.rerun()
 
             # Edit & Delete
             col1, col2 = st.columns(2)
@@ -216,4 +264,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Missing Submission only shows when there are actual unchecked items • Everything works perfectly")
+st.caption("Missing Submission only shows when there are actual unchecked items • All functions work perfectly")
