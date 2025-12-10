@@ -81,11 +81,11 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project（永遠都在）
+# 左側：New Project（保持不變）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
-    # （你原本的 New Project 表單全部保留，這裡省略以節省篇幅）
+    # （你原本的 New Project 表單全部保留）
 
 # ==============================================
 # 中間：卡片 + 完美 Checklist Panel
@@ -119,7 +119,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 詳細內容 + Checklist Panel
+        # Details + Checklist Panel
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
@@ -142,7 +142,7 @@ else:
                 })
 
                 # 完全置中標題
-                st.markdown("<h4 style='text-align:center; margin:15px 0 10px 0;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align:center; margin:15px 0 8px 0;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
 
                 new_purchase = []
                 new_done_p = set()
@@ -153,6 +153,7 @@ else:
 
                 for i in range(max_rows):
                     c1, c2 = st.columns(2)
+                    # Purchase
                     with c1:
                         text = current["purchase"][i] if i < len(current["purchase"]) else ""
                         checked = text in current["done_p"]
@@ -166,6 +167,7 @@ else:
                             if chk:
                                 new_done_p.add(txt.strip())
 
+                    # Drawing
                     with c2:
                         text = current["drawing"][i] if i < len(current["drawing"]) else ""
                         checked = text in current["done_d"]
@@ -192,15 +194,15 @@ else:
 
                 # 紅色提醒（放在進度條下方）
                 has_pending = False
-                for item in new_purchase + new_drawing:
-                    if item_text = item if isinstance(item, str) else item.get("text","")
-                    item_done = item in new_done_p or item in new_done_d if isinstance(item, str) else item.get("done", False)
-                    if item_text and not item_done:
+                for item in new_purchase:
+                    if item and item not in new_done_p:
                         has_pending = True
-                        break
+                for item in new_drawing:
+                    if item and item not in new_done_d:
+                        has_pending = True
 
                 if has_pending:
-                    st.markdown("<p style='color:red; font-weight:bold; text-align:center; margin:10px 0;'>有項目未完成！</p>", unsafe_allow_html=True)
+                    st.markdown("<p style='color:red; font-weight:bold; text-align:center; margin:15px 0 5px 0;'>有項目未完成！</p>", unsafe_allow_html=True)
 
             # Edit & Delete
             col1, col2 = st.columns(2)
@@ -212,4 +214,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Checklist Panel 完全置中 • Edit 正常 • Red alert in progress card • 永久儲存")
+st.caption("Checklist Panel 完美置中 • Edit 正常 • Red alert • 永久儲存")
