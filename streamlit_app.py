@@ -18,18 +18,24 @@ if not os.path.exists(CHECKLIST_FILE):
     with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump({}, f, ensure_ascii=False, indent=2)
 
+
 def load_projects():
     with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not data:
         return pd.DataFrame()
     df = pd.DataFrame(data)
-    required = ["Project_Type","Project_Name","Year","Lead_Time","Customer","Supervisor",
-                "Qty","Real_Count","Project_Spec","Description","Progress_Reminder",
-                "Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+
+    # 強制補齊所有欄位（包括 Progress_Reminder）
+    required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
+                "Qty", "Real_Count", "Project_Spec", "Description", "Progress_Reminder",
+                "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
     for c in required:
-        if c not in df.columns: df[c] = None
-    date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+        if c not in df.columns:
+            df[c] = ""
+
+    date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
+                 "Delivery_Complete"]
     for c in date_cols:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
@@ -38,25 +44,31 @@ def load_projects():
         df["Real_Count"] = df.get("Qty", 1)
     return df
 
+
 def save_projects(df):
     df2 = df.copy()
-    date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
+    date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
+                 "Delivery_Complete"]
     for c in date_cols:
         if c in df2.columns:
             df2[c] = df2[c].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) and hasattr(x, "strftime") else None)
     with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
         json.dump(df2.to_dict("records"), f, ensure_ascii=False, indent=2)
 
+
 def load_checklist():
     with open(CHECKLIST_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def save_checklist(data):
     with open(CHECKLIST_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+
 df = load_projects()
 checklist_db = load_checklist()
+
 
 # ==============================================
 # 進度計算 + 顏色
@@ -70,15 +82,23 @@ def calculate_progress(row):
     if pd.notna(row.get("Delivery_Complete")): p += 10
     return min(p, 100)
 
+
 def get_color(pct):
-    if pct >= 100: return "#0066ff"
-    elif pct >= 90: return "#00aa00"
-    elif pct >= 70: return "#66cc66"
-    elif pct >= 30: return "#ffaa00"
-    else: return "#ff4444"
+    if pct >= 100:
+        return "#0066ff"
+    elif pct >= 90:
+        return "#00aa00"
+    elif pct >= 70:
+        return "#66cc66"
+    elif pct >= 30:
+        return "#ffaa00"
+    else:
+        return "#ff4444"
+
 
 def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
+
 
 # ==============================================
 # 左側：New Project（含 Progress Reminder）
@@ -89,10 +109,10 @@ with st.sidebar:
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"])
+            new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
             new_name = st.text_input("Project Name*")
-            new_year = st.selectbox("Year*", [2024,2025,2026], index=1)
-            new_qty  = st.number_input("Qty", min_value=1, value=1)
+            new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1)
+            new_qty = st.number_input("Qty", min_value=1, value=1)
         with c2:
             new_customer = st.text_input("Customer")
             new_supervisor = st.text_input("Supervisor")
@@ -113,8 +133,9 @@ with st.sidebar:
             d4 = st.date_input("Cleaning Complete", value=None, key="d4")
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
-            # 新增：Progress Reminder
-            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨")
+            # Progress Reminder
+            reminder = st.text_input("Progress Reminder (顯示在進度條中間)",
+                                     placeholder="例如：等緊報價 / 生產中 / 已發貨")
 
             desc = st.text_area("Description", height=100)
 
@@ -167,8 +188,8 @@ else:
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
         done_items = set(current_check["done_p"]) | set(current_check["done_d"])
-        real_items = [item for item in all_items if item.strip()]
-        has_missing = any(item.strip() and item not in done_items for item in real_items)
+        real_items = [item for item in all_items if item and str(item).strip()]
+        has_missing = any(str(item).strip() and str(item) not in done_items for item in real_items)
         all_done = len(real_items) > 0 and not has_missing
         is_empty = len(real_items) == 0
 
@@ -181,8 +202,10 @@ else:
         elif has_missing:
             status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
 
-        # Progress Reminder 文字（顯示在進度條中間）
-        reminder_text = row.get("Progress_Reminder", "").strip()
+        # Progress Reminder（安全讀取）
+        reminder_text = str(row["Progress_Reminder"]) if "Progress_Reminder" in row and pd.notna(
+            row["Progress_Reminder"]) else ""
+        reminder_text = reminder_text.strip()
         reminder_display = f'<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; font-size:1.1rem; color:white; text-shadow:1px 1px 3px black; pointer-events:none; z-index:10;">{reminder_text}</div>' if reminder_text else ""
 
         # 進度卡片
@@ -203,22 +226,23 @@ else:
                 </div>
             </div>
             <div style="font-size:0.85rem; color:#555; margin-top:6px; position:relative; z-index:5;">
-                {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
+                {row.get('Customer', '—')} | {row.get('Supervisor', '—')} | Qty:{row.get('Qty', 0)} | 
                 Lead Time: {fmt(row['Lead_Time'])}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容
+        # 展開內容（保持你原本的）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
-            st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
+            st.markdown(
+                f"**Customer:** {row.get('Customer', '—')} | **Supervisor:** {row.get('Supervisor', '—')} | **Qty:** {row.get('Qty', 0)}")
 
             if row.get("Project_Spec"):
                 st.markdown("**Project Specification:**")
                 for line in row["Project_Spec"].split("\n"):
                     if line.strip():
-                        key, val = line.split(": ",1) if ": " in line else ("", line)
+                        key, val = line.split(": ", 1) if ": " in line else ("", line)
                         st.markdown(f"• **{key}:** {val}")
 
             # Checklist Panel
@@ -226,9 +250,10 @@ else:
                 st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
 
             if st.session_state.get(f"cl_open_{idx}", False):
-                current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
+                current = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
 
-                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>",
+                            unsafe_allow_html=True)
 
                 new_purchase = []
                 new_done_p = set()
@@ -242,7 +267,7 @@ else:
                     with c1:
                         text = current["purchase"][i] if i < len(current["purchase"]) else ""
                         checked = text in current["done_p"]
-                        col_chk, col_txt = st.columns([1,7])
+                        col_chk, col_txt = st.columns([1, 7])
                         with col_chk:
                             chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
                         with col_txt:
@@ -254,7 +279,7 @@ else:
                     with c2:
                         text = current["drawing"][i] if i < len(current["drawing"]) else ""
                         checked = text in current["done_d"]
-                        col_chk, col_txt = st.columns([1,7])
+                        col_chk, col_txt = st.columns([1, 7])
                         with col_chk:
                             chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
                         with col_txt:
@@ -285,4 +310,4 @@ else:
                 st.rerun()
 
 st.markdown("---")
-st.caption("Progress Reminder now shown in the middle of progress bar • All functions perfect • 永久儲存")
+st.caption("Progress Reminder in progress bar • All functions perfect • 永久儲存")
