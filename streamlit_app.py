@@ -81,7 +81,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project
+# 左側：New Project（永遠都在）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -150,14 +150,15 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：右上角 Counter + 進度卡片 + K38 圖示 + Progress Reminder
+# 中間：右上角小方塊 Project Counter + 進度卡片
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
-# 右上角小方塊 Project Counter
+# 右上角小方塊 Project Counter（超小巧）
 if len(df) > 0:
     counter = df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
     total_qty = int(df["Qty"].sum())
+
     st.markdown(f"""
     <div style="position:fixed; top:70px; right:20px; background:#1e3a8a; color:white; padding:12px 18px; 
                 border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.3); z-index:1000; font-size:0.9rem; text-align:center;">
@@ -198,23 +199,11 @@ else:
             reminder_text = "In Progress"
         reminder_display = f'<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; font-size:1.1rem; color:white; text-shadow:1px 1px 3px black; pointer-events:none; z-index:10;">{reminder_text}</div>'
 
-        # K38 圖示（Genset model 包含 K38）
-        k38_icon = ""
-        genset_model = ""
-        if row.get("Project_Spec"):
-            for line in row["Project_Spec"].split("\n"):
-                if "Genset model:" in line:
-                    genset_model = line.split("Genset model:")[-1].strip()
-                    break
-        if "K38" in genset_model.upper():
-            k38_icon = '<img src="https://i.imgur.com/koGZmUz.jpeg" style="position:absolute; top:8px; left:8px; width:40px; height:40px; border-radius:8px; z-index:10;" />'
-
         # 進度卡片
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
                     box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
-            {k38_icon}
             {reminder_display}
             <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
                 <div style="font-weight: bold;">
@@ -400,4 +389,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("K38 logo on progress bar • Right-top counter • All functions perfect • 永久儲存")
+st.caption("Project Counter in top-right corner • All functions perfect • 永久儲存")
