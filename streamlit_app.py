@@ -25,7 +25,7 @@ def load_projects():
         return pd.DataFrame()
     df = pd.DataFrame(data)
     required = ["Project_Type","Project_Name","Year","Lead_Time","Customer","Supervisor",
-                "Qty","Real_Count","Project_Spec","Description",
+                "Qty","Real_Count","Project_Spec","Description","Progress_Reminder",
                 "Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
     for c in required:
         if c not in df.columns: df[c] = None
@@ -81,7 +81,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側：New Project（永遠都在！）
+# 左側：New Project（含 Progress Reminder）
 # ==============================================
 with st.sidebar:
     st.header("New Project")
@@ -113,6 +113,9 @@ with st.sidebar:
             d4 = st.date_input("Cleaning Complete", value=None, key="d4")
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
+            # 新增：Progress Reminder
+            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨")
+
             desc = st.text_area("Description", height=100)
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
@@ -135,6 +138,7 @@ with st.sidebar:
                     "Lead_Time": new_leadtime.strftime("%Y-%m-%d"), "Customer": new_customer or "",
                     "Supervisor": new_supervisor or "", "Qty": new_qty, "Real_Count": new_qty,
                     "Project_Spec": spec_text, "Description": desc or "",
+                    "Progress_Reminder": reminder or "",  # ← 新增這行
                     "Parts_Arrival": d1.strftime("%Y-%m-%d") if d1 else None,
                     "Installation_Complete": d2.strftime("%Y-%m-%d") if d2 else None,
                     "Testing_Complete": d3.strftime("%Y-%m-%d") if d3 else None,
@@ -147,7 +151,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 中間：卡片 + Checklist Panel + Edit + Delete 確認視窗
+# 中間：卡片 + Progress Reminder 顯示在進度條中間
 # ==============================================
 st.title("YIP SHING Project Dashboard")
 
@@ -158,7 +162,7 @@ else:
         pct = calculate_progress(row)
         color = get_color(pct)
 
-        # 判斷 Checklist 狀態
+        # 判斷 Checklist 狀態（Missing Submission）
         project_name = row["Project_Name"]
         current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
         all_items = current_check["purchase"] + current_check["drawing"]
@@ -173,16 +177,21 @@ else:
         if is_empty:
             status_tag = '<span style="background:#888888; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Please add checklist</span>'
         elif all_done:
-            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">✔️</span>'
+            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Check</span>'
         elif has_missing:
             status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
+
+        # Progress Reminder 文字（顯示在進度條中間）
+        reminder_text = row.get("Progress_Reminder", "").strip()
+        reminder_display = f'<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; font-size:1.1rem; color:white; text-shadow:1px 1px 3px black; pointer-events:none; z-index:10;">{reminder_text}</div>' if reminder_text else ""
 
         # 進度卡片
         st.markdown(f"""
         <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
                     border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
+            {reminder_display}
+            <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
                 <div style="font-weight: bold;">
                     {row['Project_Name']} • {row['Project_Type']}
                 </div>
@@ -193,14 +202,14 @@ else:
                     </span>
                 </div>
             </div>
-            <div style="font-size:0.85rem; color:#555; margin-top:6px;">
+            <div style="font-size:0.85rem; color:#555; margin-top:6px; position:relative; z-index:5;">
                 {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
                 Lead Time: {fmt(row['Lead_Time'])}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容
+        # 展開內容（保持你原本的）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
