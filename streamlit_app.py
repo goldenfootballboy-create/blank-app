@@ -41,7 +41,7 @@ def load_projects():
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
 
-    # 強制補 Year（舊資料用 Lead_Time 年份填補）
+    # 強制補 Year（用 Lead_Time 年份填補）
     df["Year"] = df["Lead_Time"].dt.year.fillna(2025).astype(int)
 
     # Real_Count 補齊
@@ -150,25 +150,24 @@ with st.sidebar:
     with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"],
-                                    key="new_type")
-            new_name = st.text_input("Project Name*", key="new_name")
-            new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1, key="new_year")
-            new_qty = st.number_input("Qty", min_value=1, value=1, key="new_qty")
+            new_type = st.selectbox("Project Type*", ["Enclosure", "Open Set", "Scania", "Marine", "K50G3"])
+            new_name = st.text_input("Project Name*")
+            new_year = st.selectbox("Year*", [2024, 2025, 2026], index=1)
+            new_qty = st.number_input("Qty", min_value=1, value=1)
         with c2:
-            new_customer = st.text_input("Customer", key="new_customer")
-            new_supervisor = st.text_input("Supervisor", key="new_supervisor")
-            new_leadtime = st.date_input("Lead Time*", value=date.today(), key="new_leadtime")
+            new_customer = st.text_input("Customer")
+            new_supervisor = st.text_input("Supervisor")
+            new_leadtime = st.date_input("Lead Time*", value=date.today())
 
         with st.expander("Project Specification & Progress Dates", expanded=False):
             st.markdown("**Specification**")
-            s1 = st.text_input("Genset model", key="s1")
-            s2 = st.text_input("Alternator Model", key="s2")
-            s3 = st.text_input("Controller", key="s3")
-            s4 = st.text_input("Circuit breaker Size", key="s4")
-            s5 = st.text_input("Charger", key="s5")
+            s1 = st.text_input("Genset model")
+            s2 = st.text_input("Alternator Model")
+            s3 = st.text_input("Controller")
+            s4 = st.text_input("Circuit breaker Size")
+            s5 = st.text_input("Charger")
 
-            desc = st.text_area("Description", height=100, key="desc")
+            desc = st.text_area("Description", height=100)
 
             st.markdown("**Progress Dates**")
             d1 = st.date_input("Parts Arrival", value=None, key="d1")
@@ -178,7 +177,7 @@ with st.sidebar:
             d5 = st.date_input("Delivery Complete", value=None, key="d5")
 
             reminder = st.text_input("Progress Reminder (顯示在進度條中間)",
-                                     placeholder="例如：等緊報價 / 生產中 / 已發貨", key="reminder")
+                                     placeholder="例如：等緊報價 / 生產中 / 已發貨")
 
         if st.form_submit_button("Add", type="primary", use_container_width=True):
             if not new_name.strip():
@@ -261,7 +260,7 @@ if len(filtered_df) == 0:
     if st.session_state.view_mode == "delay":
         st.success("No delay projects! All on time!")
     else:
-        st.info("No projects match the selected filters.")
+        st.info("No projects yet. Add one on the left.")
 else:
     for idx, row in filtered_df.iterrows():
         pct = calculate_progress(row)
