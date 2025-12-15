@@ -9,8 +9,8 @@ from datetime import date
 # ==============================================
 conn = st.connection('gsheets', type=GSheetsConnection)
 
-# 讀取 projects
-df = conn.read(worksheet="projects", usecols=list(range(16)), ttl="10s")
+# 讀取 projects（ttl=0：不快取，永遠讀最新）
+df = conn.read(worksheet="projects", usecols=list(range(16)), ttl=0)
 df = df.dropna(how="all")  # 移除全空行
 
 required = ["Project_Type","Project_Name","Year","Lead_Time","Customer","Supervisor",
@@ -34,8 +34,8 @@ df["Year"] = pd.to_numeric(df["Year"], errors="coerce").fillna(date.today().year
 df["Qty"] = pd.to_numeric(df["Qty"], errors="coerce").fillna(1).astype(int)
 df["Real_Count"] = pd.to_numeric(df["Real_Count"], errors="coerce").fillna(df["Qty"]).astype(int)
 
-# 讀取 checklist
-checklist_raw = conn.read(worksheet="checklist", ttl="10s")
+# 讀取 checklist（ttl=0）
+checklist_raw = conn.read(worksheet="checklist", ttl=0)
 checklist_db = {}
 if not checklist_raw.empty:
     for _, row in checklist_raw.iterrows():
@@ -54,7 +54,6 @@ def save_projects():
 
 def save_checklist():
     if not checklist_db:
-        # 如果 checklist_db 為空，寫入空表（帶標題）避免 gspread 錯誤
         empty_df = pd.DataFrame(columns=["Project_Name", "Checklist_Data"])
         conn.update(worksheet="checklist", data=empty_df)
     else:
@@ -171,6 +170,7 @@ with st.sidebar:
                 }
                 df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
                 save_projects()
+                st.cache_data.clear()  # 清除快取，確保下次讀最新
                 st.success(f"Added: {new_name}")
                 st.rerun()
 
@@ -334,6 +334,7 @@ else:
                         "done_d": list(new_done_d)
                     }
                     save_checklist()
+                    st.cache_data.clear()
                     st.success("Checklist 已永久儲存到 Google Sheets！")
                     st.rerun()
 
@@ -344,7 +345,7 @@ else:
             if st.session_state.get(f"editing_{idx}", False):
                 st.markdown("---")
                 st.subheader(f"Editing: {row['Project_Name']}")
-                with st.form(key_tex=f"edit_form_{idx}"):
+                with st.form(key=f"edit_form_{idx}"):
                     c1, c2 = st.columns(2)
                     with c1:
                         e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
@@ -405,6 +406,7 @@ else:
                             df.at[idx, "Cleaning_Complete"] = e_d4
                             df.at[idx, "Delivery_Complete"] = e_d5
                             save_projects()
+                            st.cache_data.clear()
                             del st.session_state[f"editing_{idx}"]
                             st.success("Updated!")
                             st.rerun()
@@ -420,7 +422,8 @@ else:
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects()
                     checklist_db.pop(project_name, None)
-                    save_checklist()  # 安全儲存，即使 checklist_db 為空
+                    save_checklist()
+                    st.cache_data.clear()
                     if f"confirm_delete_{idx}" in st.session_state:
                         del st.session_state[f"confirm_delete_{idx}"]
                     st.success("已刪除！")
@@ -431,4 +434,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("All data permanently stored in Google Sheets • Progress counts only after date passed")
+st.caption("All data permanently stored in Google Sheets • Immediate update after add/edit/delete")
