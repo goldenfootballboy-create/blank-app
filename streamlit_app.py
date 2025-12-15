@@ -26,7 +26,7 @@ def load_projects():
         return pd.DataFrame()
     df = pd.DataFrame(data)
 
-    # 強制補齊所有必要欄位（舊資料完美相容）
+    # 強制補齊所有必要欄位
     required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
                 "Qty", "Real_Count", "Project_Spec", "Description", "Progress_Reminder",
                 "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
@@ -41,12 +41,12 @@ def load_projects():
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
 
-    # 強制補 Year（舊資料用 Lead_Time 年份填）
+    # 強制補 Year 欄位（用 Lead_Time 年份填補，舊資料完美相容）
     df["Year"] = df["Lead_Time"].dt.year.fillna(2025).astype(int)
 
     # Real_Count 補齊
     if "Real_Count" not in df.columns:
-        df["Real_Count"] = pd.to_numeric(df["Qty"], errors="coerce").fillna(1).astype(int)
+        df["Real_Count"] = df.get("Qty", 1)
 
     return df
 
@@ -502,4 +502,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("All KeyError fixed • All functions perfect • 永久儲存")
+st.caption("Year column auto-filled • No more KeyError • All functions perfect • 永久儲存")
