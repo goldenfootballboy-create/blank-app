@@ -53,9 +53,14 @@ def save_projects():
     conn.update(worksheet="projects", data=df_save)
 
 def save_checklist():
-    checklist_list = [{"Project_Name": k, "Checklist_Data": json.dumps(v, ensure_ascii=False)} for k, v in checklist_db.items()]
-    checklist_save = pd.DataFrame(checklist_list)
-    conn.update(worksheet="checklist", data=checklist_save)
+    if not checklist_db:
+        # 如果 checklist_db 為空，寫入空表（帶標題）避免 gspread 錯誤
+        empty_df = pd.DataFrame(columns=["Project_Name", "Checklist_Data"])
+        conn.update(worksheet="checklist", data=empty_df)
+    else:
+        checklist_list = [{"Project_Name": k, "Checklist_Data": json.dumps(v, ensure_ascii=False)} for k, v in checklist_db.items()]
+        checklist_save = pd.DataFrame(checklist_list)
+        conn.update(worksheet="checklist", data=checklist_save)
 
 # ==============================================
 # 進度計算 + 顏色
@@ -339,7 +344,7 @@ else:
             if st.session_state.get(f"editing_{idx}", False):
                 st.markdown("---")
                 st.subheader(f"Editing: {row['Project_Name']}")
-                with st.form(key=f"edit_form_{idx}"):
+                with st.form(key_tex=f"edit_form_{idx}"):
                     c1, c2 = st.columns(2)
                     with c1:
                         e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
@@ -415,12 +420,14 @@ else:
                     df = df.drop(idx).reset_index(drop=True)
                     save_projects()
                     checklist_db.pop(project_name, None)
-                    save_checklist()
-                    del st.session_state[f"confirm_delete_{idx}"]
+                    save_checklist()  # 安全儲存，即使 checklist_db 為空
+                    if f"confirm_delete_{idx}" in st.session_state:
+                        del st.session_state[f"confirm_delete_{idx}"]
                     st.success("已刪除！")
                     st.rerun()
                 if col_no.button("Cancel"):
-                    del st.session_state[f"confirm_delete_{idx}"]
+                    if f"confirm_delete_{idx}" in st.session_state:
+                        del st.session_state[f"confirm_delete_{idx}"]
                     st.rerun()
 
 st.markdown("---")
