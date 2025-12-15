@@ -37,7 +37,7 @@ def load_projects():
     if "Real_Count" not in df.columns:
         df["Real_Count"] = df.get("Qty", 1)
     return df
-df["Year"] = df["Lead_Time"].dt.year.fillna(2025).astype(int)
+
 def save_projects(df):
     df2 = df.copy()
     date_cols = ["Lead_Time","Parts_Arrival","Installation_Complete","Testing_Complete","Cleaning_Complete","Delivery_Complete"]
