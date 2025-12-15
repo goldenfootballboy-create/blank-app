@@ -91,7 +91,221 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 左側側邊欄
+# 專案卡片渲染函數（一行兩個）
+# ==============================================
+def render_project_card(row, idx):
+    pct = calculate_progress(row)
+    color = get_color(pct)
+
+    project_name = row["Project_Name"]
+    current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
+    all_items = current_check["purchase"] + current_check["drawing"]
+    done_items = set(current_check["done_p"]) | set(current_check["done_d"])
+    real_items = [item for item in all_items if item and str(item).strip()]
+    has_missing = any(str(item).strip() and str(item) not in done_items for item in real_items)
+    all_done = len(real_items) > 0 and not has_missing
+    is_empty = len(real_items) == 0
+
+    status_tag = ""
+    if is_empty:
+        status_tag = '<span style="background:#888888; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Please add checklist</span>'
+    elif all_done:
+        status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Check</span>'
+    elif has_missing:
+        status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
+
+    reminder_text = str(row.get("Progress_Reminder", "")).strip() or "In Progress"
+    reminder_display = f'<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; font-size:1.1rem; color:white; text-shadow:1px 1px 3px black; pointer-events:none; z-index:10;">{reminder_text}</div>'
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
+                border-radius: 8px; padding: 10px 15px; margin: 10px 0; 
+                box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
+        {reminder_display}
+        <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
+            <div style="font-weight: bold;">
+                {row['Project_Name']} • {row['Project_Type']}
+            </div>
+            <div>
+                {status_tag}
+                <span style="color:white; background:{color}; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:1rem; margin-left:10px;">
+                    {pct}%
+                </span>
+            </div>
+        </div>
+        <div style="font-size:0.85rem; color:#555; margin-top:6px; position:relative; z-index:5;">
+            {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
+            Lead Time: {fmt(row['Lead_Time'])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander(f"Details • {row['Project_Name']}", expanded=False):
+        st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
+        st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
+
+        if row.get("Project_Spec"):
+            st.markdown("**Project Specification:**")
+            for line in row["Project_Spec"].split("\n"):
+                if line.strip():
+                    key, val = line.split(": ",1) if ": " in line else ("", line)
+                    st.markdown(f"• **{key}:** {val}")
+
+        if row.get("Description"):
+            st.markdown(f"**Description:** {row['Description']}")
+
+        # Checklist Panel
+        if st.button("Checklist Panel", key=f"cl_btn_{idx}", use_container_width=True):
+            st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
+
+        if st.session_state.get(f"cl_open_{idx}", False):
+            current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
+
+            st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
+
+            new_purchase = []
+            new_done_p = set()
+            new_drawing = []
+            new_done_d = set()
+
+            max_rows = max(len(current["purchase"]), len(current["drawing"]), 6)
+
+            for i in range(max_rows):
+                c1, c2 = st.columns(2)
+                with c1:
+                    text = current["purchase"][i] if i < len(current["purchase"]) else ""
+                    checked = text in current["done_p"]
+                    col_chk, col_txt = st.columns([1,7])
+                    with col_chk:
+                        chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
+                    with col_txt:
+                        txt = st.text_input("", value=text, key=f"pt_{idx}_{i}", label_visibility="collapsed")
+                    if txt.strip():
+                        new_purchase.append(txt.strip())
+                        if chk:
+                            new_done_p.add(txt.strip())
+                with c2:
+                    text = current["drawing"][i] if i < len(current["drawing"]) else ""
+                    checked = text in current["done_d"]
+                    col_chk, col_txt = st.columns([1,7])
+                    with col_chk:
+                        chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
+                    with col_txt:
+                        txt = st.text_input("", value=text, key=f"dt_{idx}_{i}", label_visibility="collapsed")
+                    if txt.strip():
+                        new_drawing.append(txt.strip())
+                        if chk:
+                            new_done_d.add(txt.strip())
+
+            if st.button("SAVE CHECKLIST", key=f"save_cl_{idx}", type="primary", use_container_width=True):
+                checklist_db[project_name] = {
+                    "purchase": new_purchase,
+                    "done_p": list(new_done_p),
+                    "drawing": new_drawing,
+                    "done_d": list(new_done_d)
+                }
+                save_checklist()
+                st.cache_data.clear()
+                st.success("Checklist 已永久儲存到 Google Sheets！")
+                st.rerun()
+
+        # Edit
+        if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
+            st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
+
+        if st.session_state.get(f"editing_{idx}", False):
+            st.markdown("---")
+            st.subheader(f"Editing: {row['Project_Name']}")
+            with st.form(key=f"edit_form_{idx}"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
+                                          index=["Enclosure","Open Set","Scania","Marine","K50G3"].index(row["Project_Type"]))
+                    e_name = st.text_input("Project Name*", value=row["Project_Name"])
+                    e_year = st.selectbox("Year*", [2024,2025,2026], index=[2024,2025,2026].index(row["Year"]))
+                    e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
+                with c2:
+                    e_customer = st.text_input("Customer", value=row.get("Customer",""))
+                    e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor",""))
+                    e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(row["Lead_Time"]) else date.today())
+
+                with st.expander("Project Specification & Progress Dates", expanded=True):
+                    curr_spec = row.get("Project_Spec","")
+                    lines = [line.split(": ",1)[1] if ": " in line else "" for line in curr_spec.split("\n")] if curr_spec else ["","","","",""]
+                    e_s1 = st.text_input("Genset model", value=lines[0] if len(lines)>0 else "")
+                    e_s2 = st.text_input("Alternator Model", value=lines[1] if len(lines)>1 else "")
+                    e_s3 = st.text_input("Controller", value=lines[2] if len(lines)>2 else "")
+                    e_s4 = st.text_input("Circuit breaker Size", value=lines[3] if len(lines)>3 else "")
+                    e_s5 = st.text_input("Charger", value=lines[4] if len(lines)>4 else "")
+
+                    e_desc = st.text_area("Description", value=row.get("Description",""), height=100)
+
+                    st.markdown("**Progress Dates**")
+                    e_d1 = st.date_input("Parts Arrival", value=pd.to_datetime(row["Parts_Arrival"]).date() if pd.notna(row["Parts_Arrival"]) else None, key=f"d1e{idx}")
+                    e_d2 = st.date_input("Installation Complete", value=pd.to_datetime(row["Installation_Complete"]).date() if pd.notna(row["Installation_Complete"]) else None, key=f"d2e{idx}")
+                    e_d3 = st.date_input("Testing Complete", value=pd.to_datetime(row["Testing_Complete"]).date() if pd.notna(row["Testing_Complete"]) else None, key=f"d3e{idx}")
+                    e_d4 = st.date_input("Cleaning Complete", value=pd.to_datetime(row["Cleaning_Complete"]).date() if pd.notna(row["Cleaning_Complete"]) else None, key=f"d4e{idx}")
+                    e_d5 = st.date_input("Delivery Complete", value=pd.to_datetime(row["Delivery_Complete"]).date() if pd.notna(row["Delivery_Complete"]) else None, key=f"d5e{idx}")
+
+                    e_reminder = st.text_input("Progress Reminder", value=row.get("Progress_Reminder",""))
+
+                if st.form_submit_button("Save Changes", type="primary"):
+                    if not e_name.strip():
+                        st.error("Project Name required!")
+                    else:
+                        new_spec = "\n".join([
+                            f"Genset model: {e_s1 or '—'}",
+                            f"Alternator Model: {e_s2 or '—'}",
+                            f"Controller: {e_s3 or '—'}",
+                            f"Circuit breaker Size: {e_s4 or '—'}",
+                            f"Charger: {e_s5 or '—'}"
+                        ])
+                        df.at[idx, "Project_Type"] = e_type
+                        df.at[idx, "Project_Name"] = e_name
+                        df.at[idx, "Year"] = int(e_year)
+                        df.at[idx, "Lead_Time"] = e_leadtime
+                        df.at[idx, "Customer"] = e_customer or ""
+                        df.at[idx, "Supervisor"] = e_supervisor or ""
+                        df.at[idx, "Qty"] = e_qty
+                        df.at[idx, "Real_Count"] = e_qty
+                        df.at[idx, "Project_Spec"] = new_spec
+                        df.at[idx, "Description"] = e_desc or ""
+                        df.at[idx, "Progress_Reminder"] = e_reminder or ""
+                        df.at[idx, "Parts_Arrival"] = e_d1
+                        df.at[idx, "Installation_Complete"] = e_d2
+                        df.at[idx, "Testing_Complete"] = e_d3
+                        df.at[idx, "Cleaning_Complete"] = e_d4
+                        df.at[idx, "Delivery_Complete"] = e_d5
+                        save_projects()
+                        st.cache_data.clear()
+                        del st.session_state[f"editing_{idx}"]
+                        st.success("Updated!")
+                        st.rerun()
+
+        # Delete
+        if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
+            st.session_state[f"confirm_delete_{idx}"] = True
+
+        if st.session_state.get(f"confirm_delete_{idx}", False):
+            st.warning(f"確定要刪除專案 **{row['Project_Name']}** 嗎？")
+            col_yes, col_no = st.columns(2)
+            if col_yes.button("Yes, Delete", type="primary"):
+                df = df.drop(idx).reset_index(drop=True)
+                save_projects()
+                checklist_db.pop(project_name, None)
+                save_checklist()
+                st.cache_data.clear()
+                if f"confirm_delete_{idx}" in st.session_state:
+                    del st.session_state[f"confirm_delete_{idx}"]
+                st.success("已刪除！")
+                st.rerun()
+            if col_no.button("Cancel"):
+                if f"confirm_delete_{idx}" in st.session_state:
+                    del st.session_state[f"confirm_delete_{idx}"]
+                st.rerun()
+
+# ==============================================
+# 左側側邊欄（不變）
 # ==============================================
 with st.sidebar:
     st.header("View Controls")
@@ -171,7 +385,7 @@ with st.sidebar:
                 }
                 df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
                 save_projects()
-                st.cache_data.clear()  # 清除快取，確保下次讀最新
+                st.cache_data.clear()
                 st.success(f"Added: {new_name}")
                 st.rerun()
 
@@ -223,216 +437,18 @@ if len(filtered_df) == 0:
     else:
         st.info("No projects match the selected filters.")
 else:
-    for idx, row in filtered_df.iterrows():
-        pct = calculate_progress(row)
-        color = get_color(pct)
+    # 一行顯示 2 個專案卡片
+    rows = filtered_df.to_dict('records')
+    for i in range(0, len(rows), 2):
+        col1, col2 = st.columns(2)
 
-        project_name = row["Project_Name"]
-        current_check = checklist_db.get(project_name, {"purchase": [], "done_p": [], "drawing": [], "done_d": []})
-        all_items = current_check["purchase"] + current_check["drawing"]
-        done_items = set(current_check["done_p"]) | set(current_check["done_d"])
-        real_items = [item for item in all_items if item and str(item).strip()]
-        has_missing = any(str(item).strip() and str(item) not in done_items for item in real_items)
-        all_done = len(real_items) > 0 and not has_missing
-        is_empty = len(real_items) == 0
+        with col1:
+            if i < len(rows):
+                render_project_card(rows[i], i)
 
-        status_tag = ""
-        if is_empty:
-            status_tag = '<span style="background:#888888; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Please add checklist</span>'
-        elif all_done:
-            status_tag = '<span style="background:#00aa00; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Check</span>'
-        elif has_missing:
-            status_tag = '<span style="background:#ff4444; color:white; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.8rem; margin-left:10px;">Missing Submission</span>'
-
-        reminder_text = str(row.get("Progress_Reminder", "")).strip() or "In Progress"
-        reminder_display = f'<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-weight:bold; font-size:1.1rem; color:white; text-shadow:1px 1px 3px black; pointer-events:none; z-index:10;">{reminder_text}</div>'
-
-        st.markdown(f"""
-        <div style="background: linear-gradient(to right, {color} {pct}%, #f0f0f0 {pct}%); 
-                    border-radius: 8px; padding: 10px 15px; margin: 6px 0; 
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
-            {reminder_display}
-            <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
-                <div style="font-weight: bold;">
-                    {row['Project_Name']} • {row['Project_Type']}
-                </div>
-                <div>
-                    {status_tag}
-                    <span style="color:white; background:{color}; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:1rem; margin-left:10px;">
-                        {pct}%
-                    </span>
-                </div>
-            </div>
-            <div style="font-size:0.85rem; color:#555; margin-top:6px; position:relative; z-index:5;">
-                {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
-                Lead Time: {fmt(row['Lead_Time'])}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.expander(f"Details • {row['Project_Name']}", expanded=False):
-            st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
-            st.markdown(f"**Customer:** {row.get('Customer','—')} | **Supervisor:** {row.get('Supervisor','—')} | **Qty:** {row.get('Qty',0)}")
-
-            if row.get("Project_Spec"):
-                st.markdown("**Project Specification:**")
-                for line in row["Project_Spec"].split("\n"):
-                    if line.strip():
-                        key, val = line.split(": ",1) if ": " in line else ("", line)
-                        st.markdown(f"• **{key}:** {val}")
-
-            if row.get("Description"):
-                st.markdown(f"**Description:** {row['Description']}")
-
-            # Checklist Panel
-            if st.button("Checklist Panel", key=f"cl_btn_{idx}", use_container_width=True):
-                st.session_state[f"cl_open_{idx}"] = not st.session_state.get(f"cl_open_{idx}", False)
-
-            if st.session_state.get(f"cl_open_{idx}", False):
-                current = checklist_db.get(project_name, {"purchase": [],"done_p": [],"drawing": [],"done_d": []})
-
-                st.markdown("<h4 style='text-align:center;'>Purchase List        Drawings Submission</h4>", unsafe_allow_html=True)
-
-                new_purchase = []
-                new_done_p = set()
-                new_drawing = []
-                new_done_d = set()
-
-                max_rows = max(len(current["purchase"]), len(current["drawing"]), 6)
-
-                for i in range(max_rows):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        text = current["purchase"][i] if i < len(current["purchase"]) else ""
-                        checked = text in current["done_p"]
-                        col_chk, col_txt = st.columns([1,7])
-                        with col_chk:
-                            chk = st.checkbox("", value=checked, key=f"p_{idx}_{i}")
-                        with col_txt:
-                            txt = st.text_input("", value=text, key=f"pt_{idx}_{i}", label_visibility="collapsed")
-                        if txt.strip():
-                            new_purchase.append(txt.strip())
-                            if chk:
-                                new_done_p.add(txt.strip())
-                    with c2:
-                        text = current["drawing"][i] if i < len(current["drawing"]) else ""
-                        checked = text in current["done_d"]
-                        col_chk, col_txt = st.columns([1,7])
-                        with col_chk:
-                            chk = st.checkbox("", value=checked, key=f"d_{idx}_{i}")
-                        with col_txt:
-                            txt = st.text_input("", value=text, key=f"dt_{idx}_{i}", label_visibility="collapsed")
-                        if txt.strip():
-                            new_drawing.append(txt.strip())
-                            if chk:
-                                new_done_d.add(txt.strip())
-
-                if st.button("SAVE CHECKLIST", key=f"save_cl_{idx}", type="primary", use_container_width=True):
-                    checklist_db[project_name] = {
-                        "purchase": new_purchase,
-                        "done_p": list(new_done_p),
-                        "drawing": new_drawing,
-                        "done_d": list(new_done_d)
-                    }
-                    save_checklist()
-                    st.cache_data.clear()
-                    st.success("Checklist 已永久儲存到 Google Sheets！")
-                    st.rerun()
-
-            # Edit
-            if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
-                st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
-
-            if st.session_state.get(f"editing_{idx}", False):
-                st.markdown("---")
-                st.subheader(f"Editing: {row['Project_Name']}")
-                with st.form(key=f"edit_form_{idx}"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
-                                              index=["Enclosure","Open Set","Scania","Marine","K50G3"].index(row["Project_Type"]))
-                        e_name = st.text_input("Project Name*", value=row["Project_Name"])
-                        e_year = st.selectbox("Year*", [2024,2025,2026], index=[2024,2025,2026].index(row["Year"]))
-                        e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
-                    with c2:
-                        e_customer = st.text_input("Customer", value=row.get("Customer",""))
-                        e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor",""))
-                        e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(row["Lead_Time"]) else date.today())
-
-                    with st.expander("Project Specification & Progress Dates", expanded=True):
-                        curr_spec = row.get("Project_Spec","")
-                        lines = [line.split(": ",1)[1] if ": " in line else "" for line in curr_spec.split("\n")] if curr_spec else ["","","","",""]
-                        e_s1 = st.text_input("Genset model", value=lines[0] if len(lines)>0 else "")
-                        e_s2 = st.text_input("Alternator Model", value=lines[1] if len(lines)>1 else "")
-                        e_s3 = st.text_input("Controller", value=lines[2] if len(lines)>2 else "")
-                        e_s4 = st.text_input("Circuit breaker Size", value=lines[3] if len(lines)>3 else "")
-                        e_s5 = st.text_input("Charger", value=lines[4] if len(lines)>4 else "")
-
-                        e_desc = st.text_area("Description", value=row.get("Description",""), height=100)
-
-                        st.markdown("**Progress Dates**")
-                        e_d1 = st.date_input("Parts Arrival", value=pd.to_datetime(row["Parts_Arrival"]).date() if pd.notna(row["Parts_Arrival"]) else None, key=f"d1e{idx}")
-                        e_d2 = st.date_input("Installation Complete", value=pd.to_datetime(row["Installation_Complete"]).date() if pd.notna(row["Installation_Complete"]) else None, key=f"d2e{idx}")
-                        e_d3 = st.date_input("Testing Complete", value=pd.to_datetime(row["Testing_Complete"]).date() if pd.notna(row["Testing_Complete"]) else None, key=f"d3e{idx}")
-                        e_d4 = st.date_input("Cleaning Complete", value=pd.to_datetime(row["Cleaning_Complete"]).date() if pd.notna(row["Cleaning_Complete"]) else None, key=f"d4e{idx}")
-                        e_d5 = st.date_input("Delivery Complete", value=pd.to_datetime(row["Delivery_Complete"]).date() if pd.notna(row["Delivery_Complete"]) else None, key=f"d5e{idx}")
-
-                        e_reminder = st.text_input("Progress Reminder", value=row.get("Progress_Reminder",""))
-
-                    if st.form_submit_button("Save Changes", type="primary"):
-                        if not e_name.strip():
-                            st.error("Project Name required!")
-                        else:
-                            new_spec = "\n".join([
-                                f"Genset model: {e_s1 or '—'}",
-                                f"Alternator Model: {e_s2 or '—'}",
-                                f"Controller: {e_s3 or '—'}",
-                                f"Circuit breaker Size: {e_s4 or '—'}",
-                                f"Charger: {e_s5 or '—'}"
-                            ])
-                            df.at[idx, "Project_Type"] = e_type
-                            df.at[idx, "Project_Name"] = e_name
-                            df.at[idx, "Year"] = int(e_year)
-                            df.at[idx, "Lead_Time"] = e_leadtime
-                            df.at[idx, "Customer"] = e_customer or ""
-                            df.at[idx, "Supervisor"] = e_supervisor or ""
-                            df.at[idx, "Qty"] = e_qty
-                            df.at[idx, "Real_Count"] = e_qty
-                            df.at[idx, "Project_Spec"] = new_spec
-                            df.at[idx, "Description"] = e_desc or ""
-                            df.at[idx, "Progress_Reminder"] = e_reminder or ""
-                            df.at[idx, "Parts_Arrival"] = e_d1
-                            df.at[idx, "Installation_Complete"] = e_d2
-                            df.at[idx, "Testing_Complete"] = e_d3
-                            df.at[idx, "Cleaning_Complete"] = e_d4
-                            df.at[idx, "Delivery_Complete"] = e_d5
-                            save_projects()
-                            st.cache_data.clear()
-                            del st.session_state[f"editing_{idx}"]
-                            st.success("Updated!")
-                            st.rerun()
-
-            # Delete
-            if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
-                st.session_state[f"confirm_delete_{idx}"] = True
-
-            if st.session_state.get(f"confirm_delete_{idx}", False):
-                st.warning(f"確定要刪除專案 **{row['Project_Name']}** 嗎？")
-                col_yes, col_no = st.columns(2)
-                if col_yes.button("Yes, Delete", type="primary"):
-                    df = df.drop(idx).reset_index(drop=True)
-                    save_projects()
-                    checklist_db.pop(project_name, None)
-                    save_checklist()
-                    st.cache_data.clear()
-                    if f"confirm_delete_{idx}" in st.session_state:
-                        del st.session_state[f"confirm_delete_{idx}"]
-                    st.success("已刪除！")
-                    st.rerun()
-                if col_no.button("Cancel"):
-                    if f"confirm_delete_{idx}" in st.session_state:
-                        del st.session_state[f"confirm_delete_{idx}"]
-                    st.rerun()
+        with col2:
+            if i + 1 < len(rows):
+                render_project_card(rows[i + 1], i + 1)
 
 st.markdown("---")
 st.caption("All data permanently stored in Google Sheets • Immediate update after add/edit/delete")
