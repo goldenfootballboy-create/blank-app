@@ -23,13 +23,15 @@ def load_projects():
     with open(PROJECTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not data:
-        # 空資料時直接建立空 DataFrame 並補齊所有欄位
         required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
                     "Qty", "Real_Count", "Project_Spec", "Description", "Progress_Reminder",
                     "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
                     "Delivery_Complete"]
         df = pd.DataFrame(columns=required)
         df["Year"] = df["Year"].astype(int)
+        for col in ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
+                    "Delivery_Complete"]:
+            df[col] = pd.to_datetime(df[col])
         return df
 
     df = pd.DataFrame(data)
@@ -38,7 +40,12 @@ def load_projects():
                 "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
     for c in required:
         if c not in df.columns:
-            df[c] = "" if c != "Year" else 2025
+            if c == "Year":
+                df[c] = 2025
+            elif "date" in c.lower() or "time" in c.lower():
+                df[c] = pd.NaT
+            else:
+                df[c] = ""
 
     date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
                  "Delivery_Complete"]
@@ -52,7 +59,6 @@ def load_projects():
         df["Real_Count"] = df.get("Qty", 1)
 
     return df
-
 
 def save_projects(df):
     df2 = df.copy()
@@ -216,16 +222,20 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 篩選邏輯 + 頁面切換
+# 篩選邏輯 + 頁面切換（關鍵修正）
 # ==============================================
 today = date.today()
 all_df = df.copy()
 
+# 確保 Lead_Time 是 datetime
+if "Lead_Time" in all_df.columns:
+    all_df["Lead_Time"] = pd.to_datetime(all_df["Lead_Time"], errors="coerce")
+
 if st.session_state.view_mode == "delay":
-    filtered_df = all_df[
-        (all_df["Lead_Time"].dt.date < today) &
-        (all_df.apply(calculate_progress, axis=1) < 100)
-        ].copy()
+    # 安全篩選延遲專案
+    mask_lead = all_df["Lead_Time"].notna() & (all_df["Lead_Time"].dt.date < today)
+    mask_progress = all_df.apply(calculate_progress, axis=1) < 100
+    filtered_df = all_df[mask_lead & mask_progress].copy()
     page_title = "Delay Projects"
 else:
     filtered_df = all_df.copy()
@@ -233,9 +243,12 @@ else:
         filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
     filtered_df = filtered_df[filtered_df["Year"] == selected_year]
     if selected_month != "All":
-        month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-                     "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
-        filtered_df = filtered_df[filtered_df["Lead_Time"].dt.month == month_map[selected_month]]
+        month_map = {"Jan":1, "Feb":2, "Mar":3, "Apr":4, "May":5, "Jun":6,
+                     "Jul":7, "Aug":8, "Sep":9, "Oct":10, "Nov":11, "Dec":12}
+        filtered_df = filtered_df[
+            filtered_df["Lead_Time"].notna() &
+            (filtered_df["Lead_Time"].dt.month == month_map[selected_month])
+        ]
     page_title = "YIP SHING Project Dashboard"
 
 # ==============================================
