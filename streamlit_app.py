@@ -200,12 +200,19 @@ if st.session_state.view_mode == "delay":
 else:
     filtered_df = all_df.copy()
     # 三大篩選
+    # 三大篩選（安全讀取，避免變數未定義）
+    selected_type = st.session_state.get("filter_type", "All")
+    selected_year = st.session_state.get("filter_year", "2025")
+    selected_month = st.session_state.get("filter_month", "All")
+
     if selected_type != "All":
         filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
+
     filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+
     if selected_month != "All":
-        month_map = {"Jan":1, "Feb":2, "Mar":3, "Apr":4, "May":5, "Jun":6,
-                     "Jul":7, "Aug":8, "Sep":9, "Oct":10, "Nov":11, "Dec":12}
+        month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                     "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
         filtered_df = filtered_df[filtered_df["Lead_Time"].dt.month == month_map[selected_month]]
     page_title = "YIP SHING Project Dashboard"
 
