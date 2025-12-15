@@ -376,7 +376,7 @@ else:
                             e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
                         with c2:
                             e_customer = st.text_input("Customer", value=row.get("Customer",""))
-                            e_supervisor = st.text_input("Supervisor", value row.get("Supervisor",""))
+                            e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor",""))
                             e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(row["Lead_Time"]) else date.today())
 
                         with st.expander("Project Specification & Progress Dates", expanded=True):
