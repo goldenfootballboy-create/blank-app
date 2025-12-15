@@ -7,6 +7,7 @@ from datetime import date
 # ==============================================
 # Google Sheets 連接（永久儲存）
 # ==============================================
+st.set_page_config(layout="wide")
 conn = st.connection('gsheets', type=GSheetsConnection)
 
 # 讀取 projects（ttl=0：不快取，永遠讀最新）
