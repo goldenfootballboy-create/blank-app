@@ -131,7 +131,7 @@ def render_project_card(row, idx):
                 </span>
             </div>
         </div>
-        <div style="font-size:0.85rem; color:#BF1D30; margin-top:6px; position:relative; z-index:5;">
+        <div style="font-size:0.85rem; color:#8A2EC7; margin-top:6px; position:relative; z-index:5;">
             {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
             Lead Time: {fmt(row['Lead_Time'])}
         </div>
