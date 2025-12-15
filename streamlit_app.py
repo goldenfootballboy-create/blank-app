@@ -89,7 +89,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 專案卡片渲染函數（只顯示卡片 + Checklist）
+# 專案卡片渲染函數（只顯示卡片 + Checklist + Edit/Delete 平排按鈕）
 # ==============================================
 def render_project_card(row, idx):
     pct = calculate_progress(row)
@@ -207,7 +207,7 @@ def render_project_card(row, idx):
                 st.success("Checklist 已永久儲存到 Google Sheets！")
                 st.rerun()
 
-        # Edit 和 Delete 平排（縮小按鈕）
+        # Edit 和 Delete 平排 + 縮小按鈕
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
             if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
@@ -307,26 +307,137 @@ def render_project_card(row, idx):
                 st.rerun()
 
 # ==============================================
-# 左側側邊欄（不變）
+# 左側側邊欄
 # ==============================================
 with st.sidebar:
-    # ... (你的側邊欄程式碼保持不變)
+    st.header("View Controls")
+
+    if st.button("All Projects", use_container_width=True, type="primary", key="btn_all"):
+        st.session_state.view_mode = "all"
+    if st.button("Delay Projects", use_container_width=True, type="secondary", key="btn_delay"):
+        st.session_state.view_mode = "delay"
+
+    if "view_mode" not in st.session_state:
+        st.session_state.view_mode = "all"
+
+    st.markdown("---")
+
+    project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
+    years = [2024, 2025, 2026]
+    month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    if st.session_state.view_mode == "all":
+        st.markdown("### Filters")
+        selected_type = st.selectbox("Project Type", project_types, index=0, key="filter_type")
+        selected_year = st.selectbox("Year", years, index=1, key="filter_year")
+        selected_month = st.selectbox("Month", month_names, index=0, key="filter_month")
+    else:
+        selected_type = "All"
+        selected_year = date.today().year
+        selected_month = "All"
+
+    st.markdown("---")
+
+    st.header("New Project")
+
+    with st.form("add_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            new_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"], key="new_type")
+            new_name = st.text_input("Project Name*", key="new_name")
+            new_year = st.selectbox("Year*", [2024,2025,2026], index=1, key="new_year")
+            new_qty = st.number_input("Qty", min_value=1, value=1, key="new_qty")
+        with c2:
+            new_customer = st.text_input("Customer", key="new_customer")
+            new_supervisor = st.text_input("Supervisor", key="new_supervisor")
+            new_leadtime = st.date_input("Lead Time*", value=date.today(), key="new_leadtime")
+
+        with st.expander("Project Specification & Progress Dates", expanded=False):
+            st.markdown("**Specification**")
+            s1 = st.text_input("Genset model", key="s1")
+            s2 = st.text_input("Alternator Model", key="s2")
+            s3 = st.text_input("Controller", key="s3")
+            s4 = st.text_input("Circuit breaker Size", key="s4")
+            s5 = st.text_input("Charger", key="s5")
+            desc = st.text_area("Description", height=100, key="desc")
+            st.markdown("**Progress Dates**")
+            d1 = st.date_input("Parts Arrival", value=None, key="d1")
+            d2 = st.date_input("Installation Complete", value=None, key="d2")
+            d3 = st.date_input("Testing Complete", value=None, key="d3")
+            d4 = st.date_input("Cleaning Complete", value=None, key="d4")
+            d5 = st.date_input("Delivery Complete", value=None, key="d5")
+            reminder = st.text_input("Progress Reminder (顯示在進度條中間)", placeholder="例如：等緊報價 / 生產中 / 已發貨", key="reminder")
+
+        if st.form_submit_button("Add", type="primary", use_container_width=True):
+            if not new_name.strip():
+                st.error("Project Name required!")
+            elif new_name in df["Project_Name"].values:
+                st.error("Name exists!")
+            else:
+                spec_lines = [f"Genset model: {s1 or '—'}", f"Alternator Model: {s2 or '—'}",
+                              f"Controller: {s3 or '—'}", f"Circuit breaker Size: {s4 or '—'}", f"Charger: {s5 or '—'}"]
+                spec_text = "\n".join(spec_lines)
+
+                new_project = {
+                    "Project_Type": new_type, "Project_Name": new_name, "Year": int(new_year),
+                    "Lead_Time": new_leadtime, "Customer": new_customer or "", "Supervisor": new_supervisor or "",
+                    "Qty": new_qty, "Real_Count": new_qty, "Project_Spec": spec_text, "Description": desc or "",
+                    "Progress_Reminder": reminder or "", "Parts_Arrival": d1, "Installation_Complete": d2,
+                    "Testing_Complete": d3, "Cleaning_Complete": d4, "Delivery_Complete": d5
+                }
+                df = pd.concat([df, pd.DataFrame([new_project])], ignore_index=True)
+                save_projects()
+                st.cache_data.clear()
+                st.success(f"Added: {new_name}")
+                st.rerun()
 
 # ==============================================
-# 篩選邏輯（不變）
+# 篩選邏輯
 # ==============================================
-# ... (你的篩選程式碼)
+today = date.today()
+all_df = df.copy()
+
+if st.session_state.view_mode == "delay":
+    filtered_df = all_df[
+        all_df["Lead_Time"].notna() &
+        (all_df["Lead_Time"] < pd.Timestamp(today)) &
+        (all_df.apply(calculate_progress, axis=1) < 100)
+    ].copy()
+    page_title = "Delay Projects"
+else:
+    filtered_df = all_df.copy()
+    if selected_type != "All":
+        filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
+    filtered_df = filtered_df[filtered_df["Year"] == selected_year]
+    if selected_month != "All":
+        month_map = {"Jan":1,"Feb":2,"Mar":3,"Apr":4,"May":5,"Jun":6,"Jul":7,"Aug":8,"Sep":9,"Oct":10,"Nov":11,"Dec":12}
+        filtered_df = filtered_df[
+            filtered_df["Lead_Time"].notna() &
+            (filtered_df["Lead_Time"].dt.month == month_map[selected_month])
+        ]
+    page_title = "YIP SHING Project Dashboard"
 
 # ==============================================
 # 主畫面
 # ==============================================
 st.title(page_title)
 
-# ... (你的 counter 程式碼)
+if len(filtered_df) > 0:
+    counter = filtered_df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
+    total_qty = int(filtered_df["Qty"].sum())
+    st.markdown(f"""
+    <div style="position:fixed; top:70px; right:20px; background:#1e3a8a; color:white; padding:12px 18px; 
+                border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.3); z-index:1000; font-size:0.9rem; text-align:center;">
+        <strong style="font-size:1.1rem;">Total: {total_qty}</strong><br>
+        {"<br>".join([f"<strong>{k}:</strong> {v}" for k, v in counter.items()])}
+    </div>
+    """, unsafe_allow_html=True)
 
 if len(filtered_df) == 0:
-    # ... (你的空資料顯示)
-
+    if st.session_state.view_mode == "delay":
+        st.success("No delay projects! All on time!")
+    else:
+        st.info("No projects match the selected filters.")
 else:
     # 一行顯示 2 個專案卡片
     rows = filtered_df.to_dict('records')
