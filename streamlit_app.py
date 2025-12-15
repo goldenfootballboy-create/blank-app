@@ -89,7 +89,7 @@ def fmt(d):
     return pd.to_datetime(d).strftime("%Y-%m-%d") if pd.notna(d) else "—"
 
 # ==============================================
-# 專案卡片渲染函數（只顯示卡片 + Checklist）
+# 專案卡片渲染函數（只顯示卡片 + Checklist，不含 Edit/Delete）
 # ==============================================
 def render_project_card(row, idx):
     pct = calculate_progress(row)
@@ -352,10 +352,17 @@ else:
                 idx = filtered_df.index[i]
                 render_project_card(row, idx)
 
-                # Edit
-                if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
-                    st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
+                # Edit 和 Delete 平排（縮小按鈕）
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("Edit", key=f"edit_{idx}"):
+                        st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
 
+                with btn_col2:
+                    if st.button("Delete", key=f"del_{idx}", type="secondary"):
+                        st.session_state[f"confirm_delete_{idx}"] = True
+
+                # Edit 表單
                 if st.session_state.get(f"editing_{idx}", False):
                     st.markdown("---")
                     st.subheader(f"Editing: {row['Project_Name']}")
@@ -369,7 +376,7 @@ else:
                             e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
                         with c2:
                             e_customer = st.text_input("Customer", value=row.get("Customer",""))
-                            e_supervisor = st.text_input("Supervisor", value=row.get("Supervisor",""))
+                            e_supervisor = st.text_input("Supervisor", value row.get("Supervisor",""))
                             e_leadtime = st.date_input("Lead Time*", value=pd.to_datetime(row["Lead_Time"]).date() if pd.notna(row["Lead_Time"]) else date.today())
 
                         with st.expander("Project Specification & Progress Dates", expanded=True):
@@ -425,10 +432,7 @@ else:
                                 st.success("Updated!")
                                 st.rerun()
 
-                # Delete
-                if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
-                    st.session_state[f"confirm_delete_{idx}"] = True
-
+                # Delete 確認
                 if st.session_state.get(f"confirm_delete_{idx}", False):
                     st.warning(f"確定要刪除專案 **{row['Project_Name']}** 嗎？")
                     col_yes, col_no = st.columns(2)
@@ -454,10 +458,17 @@ else:
                 idx = filtered_df.index[i + 1]
                 render_project_card(row, idx)
 
-                # Edit (右邊)
-                if st.button("Edit", key=f"edit_{idx}", use_container_width=True):
-                    st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
+                # Edit 和 Delete 平排（右邊）
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("Edit", key=f"edit_{idx}"):
+                        st.session_state[f"editing_{idx}"] = not st.session_state.get(f"editing_{idx}", False)
 
+                with btn_col2:
+                    if st.button("Delete", key=f"del_{idx}", type="secondary"):
+                        st.session_state[f"confirm_delete_{idx}"] = True
+
+                # Edit 表單（右邊）
                 if st.session_state.get(f"editing_{idx}", False):
                     st.markdown("---")
                     st.subheader(f"Editing: {row['Project_Name']}")
@@ -527,10 +538,7 @@ else:
                                 st.success("Updated!")
                                 st.rerun()
 
-                # Delete (右邊)
-                if st.button("Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
-                    st.session_state[f"confirm_delete_{idx}"] = True
-
+                # Delete 確認（右邊）
                 if st.session_state.get(f"confirm_delete_{idx}", False):
                     st.warning(f"確定要刪除專案 **{row['Project_Name']}** 嗎？")
                     col_yes, col_no = st.columns(2)
