@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import os
@@ -105,19 +104,23 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 三大篩選（只在 All Projects 時顯示）
+    # 三大篩選（永遠定義變數，但只在 All Projects 時顯示）
+    project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
+    years = [2024, 2025, 2026]
+    month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
     if st.session_state.view_mode == "all":
         st.markdown("### Filters")
-        project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
         selected_type = st.selectbox("Project Type", project_types, index=0, key="filter_type")
-
-        years = ["2024", "2025", "2026"]
         selected_year = st.selectbox("Year", years, index=1, key="filter_year")
-
-        month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         selected_month = st.selectbox("Month", month_names, index=0, key="filter_month")
+    else:
+        # Delay 模式下給預設值
+        selected_type = "All"
+        selected_year = 2025
+        selected_month = "All"
 
-        st.markdown("---")
+    st.markdown("---")
 
     # New Project
     st.header("New Project")
@@ -203,7 +206,7 @@ else:
     # 三大篩選
     if selected_type != "All":
         filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
-    filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+    filtered_df = filtered_df[filtered_df["Year"] == selected_year]
     if selected_month != "All":
         month_map = {"Jan":1, "Feb":2, "Mar":3, "Apr":4, "May":5, "Jun":6,
                      "Jul":7, "Aug":8, "Sep":9, "Oct":10, "Nov":11, "Dec":12}
@@ -367,7 +370,7 @@ else:
                     c1, c2 = st.columns(2)
                     with c1:
                         e_type = st.selectbox("Project Type*", ["Enclosure","Open Set","Scania","Marine","K50G3"],
-                                             index=["Enclosure","Open Set","Scania","Marine","K50G3"].index(row["Project_Type"]))
+                                              index=["Enclosure","Open Set","Scania","Marine","K50G3"].index(row["Project_Type"]))
                         e_name = st.text_input("Project Name*", value=row["Project_Name"])
                         e_year = st.selectbox("Year*", [2024,2025,2026], index=[2024,2025,2026].index(row["Year"]))
                         e_qty = st.number_input("Qty", min_value=1, value=int(row.get("Qty",1)))
@@ -458,4 +461,3 @@ else:
 
 st.markdown("---")
 st.caption("Progress only counts when date has passed today • All functions perfect • 永久儲存")
-
