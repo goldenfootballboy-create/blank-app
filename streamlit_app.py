@@ -26,7 +26,7 @@ def load_projects():
         return pd.DataFrame()
     df = pd.DataFrame(data)
 
-    # 強制補齊所有必要欄位
+    # 強制補齊所有欄位
     required = ["Project_Type", "Project_Name", "Year", "Lead_Time", "Customer", "Supervisor",
                 "Qty", "Real_Count", "Project_Spec", "Description", "Progress_Reminder",
                 "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete", "Delivery_Complete"]
@@ -34,14 +34,14 @@ def load_projects():
         if c not in df.columns:
             df[c] = ""
 
-    # 日期欄位處理
+    # 日期處理
     date_cols = ["Lead_Time", "Parts_Arrival", "Installation_Complete", "Testing_Complete", "Cleaning_Complete",
                  "Delivery_Complete"]
     for c in date_cols:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce")
 
-    # 強制補 Year 欄位（用 Lead_Time 年份填補，舊資料完美相容）
+    # 強制補 Year（用 Lead_Time 年份填補，舊資料完美相容）
     df["Year"] = df["Lead_Time"].dt.year.fillna(2025).astype(int)
 
     # Real_Count 補齊
@@ -114,7 +114,7 @@ def fmt(d):
 
 
 # ==============================================
-# 左側側邊欄：三大篩選 + 頁面切換 + New Project
+# 左側側邊欄：只保留頁面切換 + New Project（Filters 已禁用）
 # ==============================================
 with st.sidebar:
     st.header("View Controls")
@@ -129,20 +129,6 @@ with st.sidebar:
         st.session_state.view_mode = "all"
 
     st.markdown("---")
-
-    # 三大篩選（只在 All Projects 時顯示）
-    if st.session_state.view_mode == "all":
-        st.markdown("### Filters")
-        project_types = ["All", "Enclosure", "Open Set", "Scania", "Marine", "K50G3"]
-        selected_type = st.selectbox("Project Type", project_types, index=0, key="filter_type")
-
-        years = ["2024", "2025", "2026"]
-        selected_year = st.selectbox("Year", years, index=1, key="filter_year")
-
-        month_names = ["All", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        selected_month = st.selectbox("Month", month_names, index=0, key="filter_month")
-
-        st.markdown("---")
 
     # New Project
     st.header("New Project")
@@ -212,7 +198,7 @@ with st.sidebar:
                 st.rerun()
 
 # ==============================================
-# 篩選邏輯 + 頁面切換（安全防呆版）
+# 頁面切換 + 顯示邏輯（無篩選）
 # ==============================================
 if st.session_state.view_mode == "delay":
     filtered_df = df[
@@ -222,21 +208,6 @@ if st.session_state.view_mode == "delay":
     page_title = "Delay Projects"
 else:
     filtered_df = df.copy()
-    # 三大篩選（安全從 session_state 讀取，永不爆錯）
-    selected_type = st.session_state.get("filter_type", "All")
-    selected_year = st.session_state.get("filter_year", "2025")
-    selected_month = st.session_state.get("filter_month", "All")
-
-    if selected_type != "All":
-        filtered_df = filtered_df[filtered_df["Project_Type"] == selected_type]
-
-    filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
-
-    if selected_month != "All":
-        month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-                     "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
-        filtered_df = filtered_df[filtered_df["Lead_Time"].dt.month == month_map[selected_month]]
-
     page_title = "YIP SHING Project Dashboard"
 
 # ==============================================
@@ -244,7 +215,6 @@ else:
 # ==============================================
 st.title(page_title)
 
-# 右上角小方塊 Project Counter
 if len(filtered_df) > 0:
     counter = filtered_df.groupby("Project_Type")["Qty"].sum().astype(int).sort_index()
     total_qty = int(filtered_df["Qty"].sum())
@@ -260,7 +230,7 @@ if len(filtered_df) == 0:
     if st.session_state.view_mode == "delay":
         st.success("No delay projects! All on time!")
     else:
-        st.info("No projects match the selected filters.")
+        st.info("No projects yet. Add one on the left.")
 else:
     for idx, row in filtered_df.iterrows():
         pct = calculate_progress(row)
@@ -315,7 +285,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 展開內容
+        # 展開內容（保持你原本的）
         with st.expander(f"Details • {row['Project_Name']}", expanded=False):
             st.markdown(f"**Year:** {row['Year']} | **Lead Time:** {fmt(row['Lead_Time'])}")
             st.markdown(
@@ -502,4 +472,4 @@ else:
                     st.rerun()
 
 st.markdown("---")
-st.caption("Year column auto-filled • No more KeyError • All functions perfect • 永久儲存")
+st.caption("Filters disabled • Delay Projects tab works • All functions perfect • 永久儲存")
