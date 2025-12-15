@@ -93,7 +93,6 @@ def fmt(d):
 # ==============================================
 # 專案卡片渲染函數（一行兩個）
 # ==============================================
-global df, checklist_db
 def render_project_card(row, idx):
     pct = calculate_progress(row)
     color = get_color(pct)
