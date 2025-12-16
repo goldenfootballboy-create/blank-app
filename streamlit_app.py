@@ -121,7 +121,7 @@ def render_project_card(row, idx):
                 box-shadow: 0 2px 6px rgba(0,0,0,0.1); position: relative; overflow:hidden;">
         {reminder_display}
         <div style="display: flex; justify-content: space-between; align-items: center; position:relative; z-index:5;">
-            <div style="font-weight: bold;">
+            <div style="font-weight: bold; color:#000000;">
                 {row['Project_Name']} • {row['Project_Type']}
             </div>
             <div>
@@ -131,7 +131,7 @@ def render_project_card(row, idx):
                 </span>
             </div>
         </div>
-        <div style="font-size:0.85rem; color:D11F1F; margin-top:6px; position:relative; z-index:5;">
+        <div style="font-size:0.85rem; color:#121111; margin-top:6px; position:relative; z-index:5;">
             {row.get('Customer','—')} | {row.get('Supervisor','—')} | Qty:{row.get('Qty',0)} | 
             Lead Time: {fmt(row['Lead_Time'])}
         </div>
